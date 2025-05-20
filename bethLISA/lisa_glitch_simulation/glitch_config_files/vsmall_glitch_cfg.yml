@@ -1,0 +1,14 @@
+seed: 1
+t_max: 86400 s
+t_min: 0 s
+dt: 5 s
+glitch_type: 'Equal Spacing'
+glitch_rate: 4
+glitch_spacing: 20000
+amp_type: 'Gaussian'
+avg_amp: 5e-12
+amp_std: 1e-12
+amp_set_min: 8e-12
+amp_set_max: 1e-12
+beta_type: 'Exponential'
+beta_scale: 50
