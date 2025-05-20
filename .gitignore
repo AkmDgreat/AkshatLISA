@@ -1,2 +1,5 @@
 random_folders_which_we_dont_need
 AkshatLISA/random_code
+**/__pycache__/
+*.py[cod]
+*$py.class
