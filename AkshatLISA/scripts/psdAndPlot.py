@@ -1,9 +1,10 @@
 import matplotlib.pyplot as plt
 import scipy.signal as sig
 from scripts.lpsd import lpsd
+from scripts.wosa import wosa
 
 # plot the figures horizontally
-def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density'):
+def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density', custom_wosa=False):
     # 1×4 subplots, make it wide enough
     fig, axes = plt.subplots(1, 4, figsize=(20, 4))
 
@@ -20,15 +21,30 @@ def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density')
     ax.set_ylabel(title)
     ax.set_title("Time series")
 
+    # Perform WOSA (choose between Scipy implementation, and my implementation):
+    if (custom_wosa):
+        print("Custom WOSA yooohoo")
+        f_w, psd_w = wosa(
+            data,
+            fs=fs,
+            window=window,
+            nperseg=nper,
+            noverlap=nper//2,
+            scaling=scaling
+        )
+    else:
+        print("Regular Scipy Welch")
+        f_w, psd_w = sig.welch(
+            data,
+            fs=fs,
+            window=window,
+            nperseg=nper,
+            noverlap=nper//2,
+            scaling=scaling
+        )
+    
+
     # 2) WOSA PSD (log–log)
-    f_w, psd_w = sig.welch(
-        data,
-        fs=fs,
-        window=window,
-        nperseg=nper,
-        noverlap=nper//2,
-        scaling=scaling
-    )
     ax = axes[1]
     ax.loglog(f_w, psd_w)
     ax.set_xlim(f_min, f_max)

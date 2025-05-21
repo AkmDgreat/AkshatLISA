@@ -2,7 +2,7 @@ import os
 from gwpy.timeseries import TimeSeriesDict
 from scripts.psdAndPlot import psd_and_plot_hor, psd_and_plot
 
-def psdAndPlotWrapper(tdi_file_path, nper=4096, title="TDI-X"):
+def psdAndPlotTDI(tdi_file_path, nper=4096, title="TDI-X", custom_wosa=False):
     """
     Load a TDI channel and run PSD+plot
 
@@ -29,4 +29,4 @@ def psdAndPlotWrapper(tdi_file_path, nper=4096, title="TDI-X"):
     dt  = obs[channel].dt.value
 
     # call your existing function
-    psd_and_plot_hor(data, t, dt, nper=nper, title=title)
+    psd_and_plot_hor(data, t, dt, nper=nper, title=title, custom_wosa=custom_wosa)
