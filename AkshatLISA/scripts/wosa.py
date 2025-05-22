@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.signal
 
 def wosa(x,
              fs: float = 1.0,
@@ -6,7 +7,8 @@ def wosa(x,
              noverlap: int | None = None,
              window: str | np.ndarray = "hann",
              detrend: str = "constant",
-             scaling: str = "density"
+             scaling: str = "density",
+             average: str = "mean"
 ):
     """
     Estimate the one-sided Power Spectral Density (PSD) of a real-valued
@@ -54,24 +56,23 @@ def wosa(x,
         raise ValueError("Segment configuration yields no segments.")
 
     # --- window ---------------------------------------------------------------
-    if isinstance(window, str):
-        if window.lower() == "hann":
-            win = np.hanning(nperseg)
-        elif window.lower() == "hamming":
-            win = np.hamming(nperseg)
-        else:
-            raise ValueError(f"Unknown window '{window}'.")
+    if isinstance(window, (str, tuple)):
+        try:
+            # this will handle 'hann', ('kaiser', β), 'nuttall', ('nuttall', False), etc.
+            win = scipy.signal.get_window(window, nperseg)
+        except ValueError:
+            raise ValueError(f"Unknown window spec {window!r}")
     else:
         win = np.asarray(window, dtype=float)
         if win.shape != (nperseg,):
-            raise ValueError("Window length must equal nperseg.")
+            raise ValueError(f"Window length must equal nperseg ({nperseg}), got {win.shape}")
 
     U = (win**2).sum()                      # window power for normalization
     scale = 1.0 / (fs * U) if scaling == "density" else 1.0 / U
 
     # --- allocate output accumulator -----------------------------------------
     nfft = nperseg
-    P_acc = np.zeros(nfft//2 + 1, dtype=float)
+    P_stack = np.empty((nseg, nfft//2 + 1), dtype=float)
 
     # --- iterate over segments -----------------------------------------------
     for k in range(nseg):
@@ -93,11 +94,21 @@ def wosa(x,
 
         # FFT and (one-sided) periodogram
         Xf = np.fft.rfft(segment, n=nfft)
-        P = np.abs(Xf)**2
-        print(P)
-        P_acc += P
+        P_stack[k] = np.abs(Xf)**2
 
-    Pxx = (P_acc / nseg) * scale
+    # average or median across segments
+    if average == "mean":
+        P = P_stack.mean(axis=0)
+    elif average == "median":
+        P = np.median(P_stack, axis=0)
+    else:
+        raise ValueError("average must be 'mean' or 'median'")
+    
+    # one-sided PSD: multiply all of the positive-frequency bins (except DC and Nyquist) 
+    # by 2 to fold in the “missing” negative-frequency power
+    P[1:-1] *= 2
+    Pxx = P * scale
+
     f = np.fft.rfftfreq(nfft, d=1.0/fs)
     print("Exiting custom wosa")
     return f, Pxx

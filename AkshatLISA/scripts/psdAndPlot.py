@@ -4,9 +4,10 @@ from scripts.lpsd import lpsd
 from scripts.wosa import wosa
 
 # plot the figures horizontally
-def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density', custom_wosa=False):
+def psd_and_plot_hor(data, t, dt, nper, title, bigtitle="PSD graphs", window='hann', scaling='density', custom_wosa=False, average="mean", noverlap=None):
     # 1×4 subplots, make it wide enough
     fig, axes = plt.subplots(1, 4, figsize=(20, 4))
+    fig.suptitle(bigtitle, fontsize=16)
 
     # prep common quantities
     fs    = 1.0 / dt
@@ -29,8 +30,9 @@ def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density',
             fs=fs,
             window=window,
             nperseg=nper,
-            noverlap=nper//2,
-            scaling=scaling
+            noverlap=noverlap,
+            scaling=scaling,
+            average=average,
         )
     else:
         print("Regular Scipy Welch")
@@ -39,8 +41,9 @@ def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density',
             fs=fs,
             window=window,
             nperseg=nper,
-            noverlap=nper//2,
-            scaling=scaling
+            noverlap=noverlap,
+            scaling=scaling,
+            average=average
         )
     
 
@@ -50,7 +53,7 @@ def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density',
     ax.set_xlim(f_min, f_max)
     ax.set_xlabel("Frequency [Hz]")
     ax.set_ylabel("PSD [1/Hz]")
-    ax.set_title("WOSA (log–log)")
+    ax.set_title("WOSA (log-log)")
 
     # 3) LPSD
     f_l, psd_l = lpsd(
@@ -77,6 +80,7 @@ def psd_and_plot_hor(data, t, dt, nper, title, window='hann', scaling='density',
     fig.tight_layout()
 
 # plot the figures vertically 
+# Note: this function is out of date 
 def psd_and_plot(data, t, dt, nper, title, window='hann', scaling='density'):
     # 1) time-domain
     plt.figure()
