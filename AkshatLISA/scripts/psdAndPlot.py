@@ -4,9 +4,9 @@ from scripts.lpsd import lpsd
 from scripts.wosa import wosa
 
 # plot the figures horizontally
-def psd_and_plot_hor(data, t, dt, nper, title, bigtitle="PSD graphs", window='hann', scaling='density', custom_wosa=False, average="mean", noverlap=None):
+def psd_and_plot_hor(data, t, dt, nper, title, bigtitle="PSD graphs", window='hann', scaling='density', custom_wosa=True, average="mean", noverlap=None):
     # 1×4 subplots, make it wide enough
-    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(20, 4))
     fig.suptitle(bigtitle, fontsize=16)
 
     # prep common quantities
@@ -69,13 +69,13 @@ def psd_and_plot_hor(data, t, dt, nper, title, bigtitle="PSD graphs", window='ha
     ax.set_ylabel("PSD [1/Hz]")
     ax.set_title("LPSD")
 
-    # 4) WOSA PSD (linear)
-    ax = axes[3]
-    ax.plot(f_w, psd_w)
-    ax.set_xlim(f_min, f_max)
-    ax.set_xlabel("Frequency [Hz]")
-    ax.set_ylabel("PSD [1/Hz]")
-    ax.set_title("WOSA (linear)")
+    # # 4) WOSA PSD (linear)
+    # ax = axes[3]
+    # ax.plot(f_w, psd_w)
+    # ax.set_xlim(f_min, f_max)
+    # ax.set_xlabel("Frequency [Hz]")
+    # ax.set_ylabel("PSD [1/Hz]")
+    # ax.set_title("WOSA (linear)")
 
     fig.tight_layout()
 

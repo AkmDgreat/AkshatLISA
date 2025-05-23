@@ -13,3 +13,5 @@ avg_set_max: 1e-10
 beta_scale: 50
 beta_set_min: 0.001
 beta_set_max: 100
+amp_set_min: 1e-8
+amp_set_max: 1e-12
