@@ -2,6 +2,66 @@ import matplotlib.pyplot as plt
 import scipy.signal as sig
 from scripts.lpsd import lpsd
 from scripts.wosa import wosa
+import numpy as np
+
+def plotLigoPsd(data,
+                t,
+                dt,
+                nper,
+                title,
+                bigtitle="PSD graphs",
+                window='hann',
+                scaling='density',
+                average="mean",
+                noverlap=None):
+    """Time series + PSD with 5th/95th-percentile envelopes."""
+    
+    # ------------------------------------------------------------------ figure
+    fig, axes = plt.subplots(1, 2, figsize=(16, 4))   # 2 columns are enough
+    fig.suptitle(bigtitle, fontsize=16)
+    
+    # ------------------------------------------------------------------- setup
+    fs    = 1.0 / dt
+    f_min = 1.0 / (nper * dt)
+    f_max = fs / 2.0
+    
+    # ----------------------------------------------------------------- panel 0
+    ax = axes[0]
+    ax.plot(t, data)
+    ax.set_xlim(t[0], t[-1])
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel(title)
+    ax.set_title("Time series")
+    
+    # --------------------------------------------------------------- run WOSA
+    f_w, psd_w, P_stack = wosa(          # <<< grab the per-segment stack
+        data,
+        fs=fs,
+        window=window,
+        nperseg=nper,
+        noverlap=noverlap,
+        scaling=scaling,
+        average=average,
+    )
+    
+    # ---------------------------------------------------- 5th / 95th percentiles
+    psd_p5  = np.percentile(P_stack,  5, axis=0)   # (nfft//2+1,)
+    psd_p95 = np.percentile(P_stack, 95, axis=0)
+    
+    # ----------------------------------------------------------------- panel 1
+    ax = axes[1]
+    ax.loglog(f_w, psd_w,  label='mean/median PSD')
+    ax.loglog(f_w, psd_p5,  ls='-', color='tab:gray', label='5th percentile')
+    ax.loglog(f_w, psd_p95, ls='-', color='tab:gray', label='95th percentile')
+    
+    ax.set_xlim(f_min, f_max)
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("PSD [1/Hz]")
+    ax.set_title("WOSA with 5 % / 95 % envelopes")
+    ax.legend()
+    
+    plt.tight_layout()
+    plt.show()                         
 
 # plot the figures horizontally
 def psd_and_plot_hor(data, t, dt, nper, title, bigtitle="PSD graphs", window='hann', scaling='density', custom_wosa=True, average="mean", noverlap=None):
@@ -25,7 +85,7 @@ def psd_and_plot_hor(data, t, dt, nper, title, bigtitle="PSD graphs", window='ha
     # Perform WOSA (choose between Scipy implementation, and my implementation):
     if (custom_wosa):
         print("Custom WOSA yooohoo")
-        f_w, psd_w = wosa(
+        f_w, psd_w, _ = wosa(
             data,
             fs=fs,
             window=window,

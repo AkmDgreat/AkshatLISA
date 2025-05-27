@@ -97,6 +97,10 @@ def wosa(x,
         Xf = np.fft.rfft(segment, n=nfft)
         P_stack[k] = np.abs(Xf)**2
 
+    # --- fold negative-frequency power & scale each segment -------------
+    P_stack[:, 1:-1] *= 2       # one-sided correction (skip DC & Nyquist)
+    P_stack *= scale            # convert |X|² → PSD [power/Hz] (or power)
+
     # average or median across segments
     if average == "mean":
         P = P_stack.mean(axis=0)
@@ -105,11 +109,12 @@ def wosa(x,
     else:
         raise ValueError("average must be 'mean' or 'median'")
     
+    Pxx = P
     # one-sided PSD: multiply all of the positive-frequency bins (except DC and Nyquist) 
     # by 2 to fold in the “missing” negative-frequency power
-    P[1:-1] *= 2
-    Pxx = P * scale
+    # P[1:-1] *= 2
+    # Pxx = P * scale
 
     f = np.fft.rfftfreq(nfft, d=1.0/fs)
     print("Exiting custom wosa")
-    return f, Pxx
+    return f, Pxx, P_stack  
