@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scripts.psdNoise import psdTdiNoise
+from scripts.averagedPsdNoise import psdTdiNoiseAveraged
 import random 
 
 def compute_noise_psds(
@@ -27,7 +28,7 @@ def compute_noise_psds(
         List of noise-only PSD arrays (length n_trials).
     """
     # Compute the true PSD and initialize ensemble
-    psd_orig, freq, _ = psdTdiNoise(
+    psd_orig, freq, _ = psdTdiNoiseAveraged(
         tdi_file_path=tdi_file_path,
         channel=channel,
         window=window,
@@ -38,7 +39,7 @@ def compute_noise_psds(
     )
     noise_psds = []
     for i in range(n_trials):
-        _, _, psd_noise = psdTdiNoise(
+        _, _, psd_noise = psdTdiNoiseAveraged(
             tdi_file_path=tdi_file_path,
             channel=channel,
             window=window,

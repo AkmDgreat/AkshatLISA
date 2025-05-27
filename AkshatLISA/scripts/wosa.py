@@ -52,6 +52,7 @@ def wosa(x,
         noverlap = nperseg // 2
     step = nperseg - noverlap
     nseg = 1 + (len(x) - nperseg) // step  # integer division
+    print(f"Number of segments: {nseg}")
     if nseg <= 0:
         raise ValueError("Segment configuration yields no segments.")
 

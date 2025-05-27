@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scripts.psdNoise import psdTdiNoise
+from scripts.averagedPsdNoise import psdTdiNoiseAveraged
 import random 
 
 def compute_psd_noise_distribution(
@@ -44,7 +45,7 @@ def compute_psd_noise_distribution(
         The frequency (in Hz) at that bin.
     """
     # 1) Compute the true PSD and frequency array
-    psd_orig, freq, _ = psdTdiNoise(
+    psd_orig, freq, _ = psdTdiNoiseAveraged(
         tdi_file_path=tdi_file_path,
         channel=channel,
         window=window,
@@ -64,7 +65,7 @@ def compute_psd_noise_distribution(
     # 3) Generate noise-only PSD samples
     noise_vals = np.empty(n_trials)
     for i in range(n_trials):
-        _, _, psd_noise = psdTdiNoise(
+        _, _, psd_noise = psdTdiNoiseAveraged(
             tdi_file_path=tdi_file_path,
             channel=channel,
             window=window,
