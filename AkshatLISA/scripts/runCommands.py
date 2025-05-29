@@ -10,7 +10,8 @@ def run_make_and_inject(
     cfg_pipeline: str = "pipeline_cfg.yml",
     cfg_glitch: str = "glitch_cfg_day.yml",
     tdi_final: str = "day_glitch_tdi.h5",
-    glitches: str = "true"
+    glitches: str = "true",
+    noise: str = "true"
 ):
     
     # 1) make glitches
@@ -31,6 +32,6 @@ def run_make_and_inject(
         "--glitch-txt-mg-output", txt_out,
         "--tdi-output-file",      tdi_final,
         "--glitches", glitches,
-        "--noise", "true",
+        "--noise", noise,
     ]
     subprocess.run(inject_glitch_cmd, cwd=directory, check=True)

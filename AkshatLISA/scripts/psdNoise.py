@@ -1,41 +1,50 @@
 # from pycbc.noise.gaussian import frequency_noise_from_psd, noise_from_psd
 from scripts.wosa import wosa
-from gwpy.timeseries import TimeSeriesDict
 import numpy as np
 import scipy.signal
+import random 
 
 # The code is modified version of code here: 
 # https://pycbc.org/pycbc/latest/html/_modules/pycbc/noise/gaussian.html#frequency_noise_from_psd
-# This function returns the original PSD, and the noise PSDs derived from the original PSD 
-def psdTdiNoise(tdi_file_path, channel="X", window="hann", nper=4096, noverlap=None, average="mean", scaling='density', seed=None): 
+def time_noise_from_psd(
+    psd, 
+    fs, 
+    nperseg, 
+    seed=None
+): 
+    """
+    Generate a time-domain noise realization whose PSD matches the input PSD.
 
-    # 1) Find the PSD of the TDI time series: 
-    obs = TimeSeriesDict.read(tdi_file_path)
-    data = obs[channel].value
-    dt  = obs[channel].dt.value
-    fs  = 1.0 / dt
+    Parameters
+    ----------
+    psd : array_like
+        Desired PSD.
+    fs : float
+        Sampling frequency in Hz.
+    nperseg : int
+        Number of samples in each time segment (length of the segment).
+    seed : int, optional
+        Seed for the random number generator. If provided, the output is reproducible.
 
-    f, psd = wosa(
-        x=data,
-        fs=fs,
-        window=window,
-        nperseg=nper,
-        noverlap=noverlap,
-        scaling=scaling,
-        average=average,
-    ) 
-    print(f"The length of psd: {psd.size}")
+    Returns
+    -------
+    numpy.ndarray
+        Real-valued time series of length N = 2*(len(psd)-1) 
+        The resulting noise realization has a PSD that matches the input `psd`.
 
-    # 2) Get frequency-domain noise from this PSD
+    Notes
+    -----
+    Adapted from PyCBC's `frequency_noise_from_psd`:
+    https://pycbc.org/pycbc/latest/html/_modules/pycbc/noise/gaussian.html#frequency_noise_from_psd
+    """
 
-    # Old Sigma (taken from Pycbc, incorrect scaling coefficient): 
+    # Old Sigma (taken from pycbc, incorrect scaling coefficient): 
     # sigma = 0.5 * np.sqrt(psd / psd.delta_f) 
 
-    # --- per-bin standard deviation -------------------------------------
-    sigma = np.sqrt(psd * fs * nper / 4)   # k = 1 … N/2-1
-    sigma[0]  = np.sqrt(psd[0]  * fs * nper / 2)      # DC (real only)
-    if nper % 2 == 0:                                 # Nyquist if present
-        sigma[-1] = np.sqrt(psd[-1] * fs * nper / 2)
+    sigma = np.sqrt(psd * fs * nperseg / 4)   
+    sigma[0]  = np.sqrt(psd[0]  * fs * nperseg / 2)      # DC (real only)
+    if nperseg % 2 == 0:                                 # Nyquist if present
+        sigma[-1] = np.sqrt(psd[-1] * fs * nperseg / 2)
 
     if seed is not None:
         np.random.seed(seed)
@@ -54,19 +63,202 @@ def psdTdiNoise(tdi_file_path, channel="X", window="hann", nper=4096, noverlap=N
     M = len(noise)           # length of FrequencySeries
     N = 2 * (M - 1)          # use this for irfft
     time_noise = np.fft.irfft(noise, n=N)
-    print(f"time_domain_noise length: {len(time_noise)}")
+    
+    return time_noise
 
-    # 4) Find the PSD of the time-domain-noise 
+def n_time_noise_from_psd(
+    psd, 
+    fs, 
+    nperseg, 
+    n=100,
+    seed_offset=0
+):
+    """
+    Generates n time-domain noise realizations whose PSD matches the input PSD.
+
+    Parameters
+    ----------
+    psd : array_like
+        Desired PSD.
+    fs : float
+        Sampling frequency in Hz.
+    nperseg : int
+        Number of samples per time segment.
+    n : int, optional
+        Number of noise realizations to generate.
+    seed_offset : int, optional
+        Integer offset used to seed the random number generator for reproducibility.
+
+    Returns
+    -------
+        numpy.ndarray, shape (n, nperseg)
+            A 2D array where each row is a real-valued time-series noise realization whose
+            PSD matches the input `psd`.
+    """
+    time_noises =  np.zeros((n, nperseg))
+    for i in range(n):
+        time_noises[i] = time_noise_from_psd(
+            psd, 
+            fs, 
+            nperseg, 
+            seed=seed_offset + i
+        )
+
+    return time_noises
+
+def n_noise_psds(time_noises, fs, nperseg, noverlap):
+    """
+    Computes PSD of n time-domain noise realisations
+
+    Parameters
+    ----------
+    time_noises : array_like, shape (n, nperseg)
+        Array of n time-series noise realizations, each of length `nperseg` samples.
+    fs : float
+        Sampling frequency in Hz.
+    nperseg : int
+        Number of samples per segment for WOSA
+    noverlap : int
+        Number of samples to overlap between adjacent segments.
+    
+    Returns
+    -------
+    f_noise : ndarray, shape (nperseg//2 + 1,)
+        The frequency bins corresponding to the PSD values.
+    noise_psds : ndarray, shape (n, nperseg//2 + 1)
+        PSD estimates for each noise realization.  Row `i` is the PSD of `time_noises[i]`.
+    """
+    n = time_noises.shape[0]
+    noise_psds = np.zeros((n, nperseg // 2 + 1))
+
+    for i in range(n):
+        f_noise, noisePsd, _ = wosa(x=time_noises[i], fs=fs, nperseg=nperseg, noverlap=noverlap)
+        noise_psds[i] = noisePsd
+
+    return f_noise, noise_psds
+
+def compute_psd_noise_distribution(
+    orig_psd,
+    orig_f,
+    noise_psds,
+    f_noise,
+    fraction=0.5,
+):
+    """
+    Sample the PSD distribution of noise realizations at a given frequency and 
+    compare it to the original PSD.
+
+    Parameters
+    ----------
+    orig_psd : array_like, shape (M,)
+        Original PSD
+    orig_f : array_like, shape (M,)
+        Frequencies corresponding to `orig_psd`.
+    
+    noise_psds : array_like, shape (n_realizations, K)
+        Noise PSDs
+    f_noise : array_like, shape (K,)
+        Frequency bins corresponding to the columns of `noise_psds`.
+    
+    fraction : float, optional
+        Fraction ∈ [0, 1] selecting the noise-PSD bin:
+        0 → lowest nonzero frequency, 1 → highest frequency. 
+
+    Returns
+    -------
+    psd_noise_vals : ndarray, shape (n,)
+        PSD values of each noise realization at the selected noise frequency.
+    orig_psd_val : float
+        Original PSD value at the frequency in `orig_f` closest to the selected noise frequency.
+    chosen_f_noise : float
+        The selected noise frequency (Hz) 
+    """
+
+    # 1) pick bin index based on fraction
+    if not (0 <= fraction <= 1):
+        raise ValueError("`fraction` must be between 0 and 1")
+    idx = int(fraction * (len(f_noise) - 1))
+    chosen_f_noise = f_noise[idx]
+
+    # 2) find the original PSD at the closest frequency in orig_f
+    closest_orig_idx = np.argmin(np.abs(orig_f - chosen_f_noise))
+    orig_psd_val = orig_psd[closest_orig_idx]
+
+    # 3) collect noise PSD values at that bin
+    psd_noise_vals = noise_psds[:, idx]
+
+    return psd_noise_vals, orig_psd_val, chosen_f_noise
+
+
+
+### The following function was a bad idea, cuz what if there is a discontinuity betweeen
+### the two time segments you stich?
+def psdTdiNoiseAveraged(
+    tdi_file_path,
+    channel   = "X",
+    window    = "hann",
+    nperseg      = 4096,
+    noverlap  = None,
+    average   = "mean",
+    scaling   = "density",
+    seed      = None
+):
+    """
+    Computes:
+        psd_true   – PSD of the original TDI data (WOSA)
+        freqs      – frequency vector
+        psd_noise  – PSD of a synthetic noise record that has the
+                     same length and therefore the same # of Welch
+                     averages as psd_true
+    """
+    # ------------------------------------------------------------------
+    # 1) PSD of original TDI time-series
+    # ------------------------------------------------------------------
+    obs   = TimeSeriesDict.read(tdi_file_path)
+    data  = obs[channel].value
+    dt    = obs[channel].dt.value
+    fs    = 1.0 / dt
+
+    freqs, psd_true = wosa(
+        x          = data,
+        fs         = fs,
+        window     = window,
+        nperseg    = nper,
+        noverlap   = noverlap,
+        scaling    = scaling,
+        average    = average,
+    )
+
+    n_samples_target = len(data)           # how long our noise must be
+    one_seg_psd      = psd_true            # same spectral shape
+    noise_segments   = []
+
+    # ------------------------------------------------------------------
+    # 2) Stitch together enough segments
+    # ------------------------------------------------------------------
+    seg_idx = 0
+    while sum(len(seg) for seg in noise_segments) < n_samples_target:
+        noise_segments.append(
+            _noise_segment_from_psd(
+                one_seg_psd, fs, nper,
+                seed = None if seed is None else seed + seg_idx
+            )
+        )
+        seg_idx += 1
+
+    time_noise = np.concatenate(noise_segments)[:n_samples_target]
+
+    # ------------------------------------------------------------------
+    # 3) PSD of the synthetic noise record (same params as true PSD)
+    # ------------------------------------------------------------------
     _, psd_noise = wosa(
-        x=time_noise,
-        fs=fs,
-        window=window,
-        nperseg=nper,
-        noverlap=noverlap,
-        scaling=scaling,
-        average=average,
-    )  
+        x          = time_noise,
+        fs         = fs,
+        window     = window,
+        nperseg    = nper,
+        noverlap   = noverlap,
+        scaling    = scaling,
+        average    = average,
+    )
 
-    print(f"Noise psd length: {len(psd_noise)}") 
-
-    return psd, f, psd_noise
+    return psd_true, freqs, psd_noise

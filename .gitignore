@@ -1,5 +1,6 @@
 random_folders_which_we_dont_need
 AkshatLISA/random_code
+AkshatLISA/notebooks/fitTimeSeries.ipynb
 **/__pycache__/
 *.py[cod]
 *$py.class
