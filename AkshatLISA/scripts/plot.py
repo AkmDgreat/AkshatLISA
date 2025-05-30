@@ -3,6 +3,8 @@ import scipy.signal as sig
 from scripts.lpsd import lpsd
 from scripts.wosa import wosa
 import numpy as np
+import random
+from scipy.stats import chi2
 
 def plotLigoPsd(data,
                 t,
@@ -64,13 +66,12 @@ def plotLigoPsd(data,
     plt.show()                         
 
 # plot the figures horizontally
-def plot(data, t, fs, nper, title, bigtitle="PSD graphs"):
+def plot(data, t, fs, f, psd, nper, title, bigtitle="PSD graphs"):
     # 1×3 subplots, make it wide enough
     fig, axes = plt.subplots(1, 2, figsize=(20, 4))
     fig.suptitle(bigtitle, fontsize=16)
 
     # prep common quantities
-    fs    = 1.0 / dt
     f_min = fs / nper
     f_max = fs / 2.0
 
@@ -84,13 +85,83 @@ def plot(data, t, fs, nper, title, bigtitle="PSD graphs"):
 
     # 2) WOSA PSD (log–log)
     ax = axes[1]
-    ax.loglog(f_w, psd_w)
+    ax.loglog(f, psd)
     ax.set_xlim(f_min, f_max)
     ax.set_xlabel("Frequency [Hz]")
     ax.set_ylabel("PSD [1/Hz]")
     ax.set_title("WOSA (log-log)")
     fig.tight_layout()
 
+def plot_orig_and_noise_psds(
+    f_orig,
+    orig_psd,
+    chosen_f_orig,
+    f_noise,
+    noise_psds,
+    chosen_f_noise,
+    n=5,
+    alpha=0.3,
+    bigtitle="PSD Comparison"
+):
+    """
+    Plot the original PSD alongside a vertical marker at `chosen_f_orig`,
+    and on the right plot show `n` random noise PSD realizations with
+    their vertical marker at `chosen_f_noise`.
+
+    Parameters
+    ----------
+    f_orig : array_like
+        Frequency bins for the original PSD.
+    orig_psd : array_like
+        Original PSD values.
+    chosen_f_orig : float
+        Frequency (Hz) at which to draw a vertical line on the original PSD.
+    f_noise : array_like
+        Frequency bins for the noise PSDs.
+    noise_psds : array_like, shape (n_realizations, len(f_noise))
+        PSD realizations for the noise.
+    chosen_f_noise : float
+        Frequency (Hz) at which to draw a vertical line on the noise PSDs.
+    n : int, optional
+        How many of the noise realizations to plot. Default is 5.
+    alpha : float, optional
+        Line transparency for the noise PSDs. Default is 0.3.
+    bigtitle : str, optional
+        Supertitle for the entire figure.
+    """
+    # pick up to n random rows
+    n_realizations = noise_psds.shape[0]
+    idxs = random.sample(range(n_realizations), min(n, n_realizations))
+
+    fig, axes = plt.subplots(1, 2, figsize=(20, 4))
+    fig.suptitle(bigtitle, fontsize=16)
+
+    # Left: original PSD
+    ax0 = axes[0]
+    ax0.loglog(f_orig, orig_psd, label="Original PSD")
+    ax0.set_xlim(f_orig[0], f_orig[-1])
+    ax0.set_xlabel("Frequency [Hz]")
+    ax0.set_ylabel("PSD [1/Hz]")
+    ax0.set_title("Original PSD (log-log)")
+    ax0.axvline(chosen_f_orig, color='red', linewidth=2,
+                label=f"Chosen freq: {chosen_f_orig:.5f} Hz")
+    ax0.legend()
+
+    # Right: noise PSDs
+    ax1 = axes[1]
+    for i in idxs:
+        ax1.loglog(f_noise, noise_psds[i], alpha=alpha, lw=1)
+    # ax1.loglog(f_orig, orig_psd, color='k', lw=2, label="Original PSD")
+    ax1.set_xlim(f_noise[0], f_noise[-1])
+    ax1.set_xlabel("Frequency [Hz]")
+    ax1.set_ylabel("PSD [1/Hz]")
+    ax1.set_title(f"{len(idxs)} Noise PSDs vs. Original")
+    ax1.axvline(chosen_f_noise, color='red', linewidth=2,
+                label=f"Chosen freq: {chosen_f_noise:.5f} Hz")
+    ax1.legend()
+
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
 
 def plot_noise_psds(
     freq,
@@ -119,33 +190,87 @@ def plot_noise_psds(
     plt.show()
 
 
-def plot_psd_noise_histogram(
-    noise_vals,
-    original_value,
-    actual_freq,
-    n_bins=20,
-    title="Noise PSD distribution"
-):
-    """
-    Plots a histogram of noise-only PSD values with the original PSD marked.
 
-    Parameters
-    ----------
-    noise_vals : np.ndarray
-        Noise-only PSD values.
-    original_value : float
-        The original PSD value to overlay.
-    actual_freq : float
-        Frequency in Hz for annotation.
-    n_bins : int
-        Number of histogram bins.
-    """
+from scipy.stats import chi2
+
+
+
+
+# Plot
+
+# plt.title(f"Chi-Square Distribution PDF (df={df})")
+# plt.xlabel("x")
+# plt.ylabel("Probability Density")
+# plt.grid(True)
+# plt.show()
+
+# def plot_psd_noise_histogram(
+#     noise_vals,
+#     original_psd_value,
+#     actual_freq,
+#     n_bins=20,
+#     title="Noise PSD distribution"
+# ):
+#     """
+#     Plots a histogram of noise-only PSD values with the original PSD marked.
+
+#     Parameters
+#     ----------
+#     noise_vals : np.ndarray
+#         Noise-only PSD values.
+#     original_psd_value : float
+#         The original PSD value to overlay.
+#     actual_freq : float
+#         Frequency in Hz for annotation.
+#     n_bins : int
+#         Number of histogram bins.
+#     """
+#     plt.figure()
+#     plt.hist(noise_vals, bins=n_bins, edgecolor='k')
+#     # noise_vals * (actual_freq / 14)
+#     plt.axvline(original_psd_value, color='r', lw=2, label="Original PSD")
+#     plt.xlabel(f"PSD @ {actual_freq:.3f} Hz [1/Hz]")
+#     plt.ylabel("Count")
+#     plt.title(title)
+
+#     df = 14
+#     # Values for x
+#     x = np.linspace(0, 5e-39, 500)
+#     pdf = chi2.pdf(x / (original_psd_value / df), df)
+#     plt.plot(x, pdf*1000*1.25)
+
+#     plt.show()
+
+def plot_psd_noise_histogram(
+        noise_vals,
+        original_psd_value,     # mean (≈ true PSD at that bin)
+        actual_freq,
+        df,  # degrees of freedom
+        n_bins=20,            
+        title="Noise PSD distribution"
+):
+    # --- histogram as *probability density* ---------------------------
     plt.figure()
-    plt.hist(noise_vals, bins=n_bins, edgecolor='k')
-    plt.axvline(original_value, color='r', lw=2, label="Original PSD")
-    plt.xlabel(f"PSD @ {actual_freq:.3f} Hz [1/Hz]")
-    plt.ylabel("Count")
+    plt.hist(noise_vals,
+             bins=n_bins,
+             density=True,              
+             alpha=0.6,
+             edgecolor='k',
+             label="Empirical density")
+
+    # --- χ² PDF for Welch estimator -----------------------------------
+    μ  = original_psd_value                 # E[ P̂ ]  (theory or sample mean)
+    x  = np.linspace(0, noise_vals.max()*1.1, 500)
+    pdf = (df/μ) * chi2.pdf(df * x / μ, df)   # rescaled χ²
+    plt.plot(x, pdf, 'r-', lw=2, label=rf"$\chi^2_{{{df}}}$ PDF")
+
+    # --- decorations ---------------------------------------------------
+    plt.axvline(original_psd_value, color='m', lw=2, ls='--', label="Original PSD")
+    plt.xlabel(f"PSD @ {actual_freq:.3f} Hz  [1/Hz]")
+    plt.ylabel("Probability density")
     plt.title(title)
+    plt.legend()
+    plt.tight_layout()
     plt.show()
 
 def ligoHistogram(P_stack, Pxx, seg_idx, bins='auto'):

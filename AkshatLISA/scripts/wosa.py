@@ -52,7 +52,7 @@ def wosa(x,
         noverlap = nperseg // 2
     step = nperseg - noverlap
     nseg = 1 + (len(x) - nperseg) // step  # integer division
-    print(f"Number of segments: {nseg}")
+    # print(f"Number of segments: {nseg}")
     if nseg <= 0:
         raise ValueError("Segment configuration yields no segments.")
 
@@ -116,5 +116,5 @@ def wosa(x,
     # Pxx = P * scale
 
     f = np.fft.rfftfreq(nfft, d=1.0/fs)
-    print("Exiting custom wosa")
-    return f, Pxx, P_stack  
+    # print("Exiting custom wosa")
+    return f, Pxx, P_stack, nseg

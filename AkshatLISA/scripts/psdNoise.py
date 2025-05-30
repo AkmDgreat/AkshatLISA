@@ -106,7 +106,7 @@ def n_time_noise_from_psd(
 
     return time_noises
 
-def n_noise_psds(time_noises, fs, nperseg, noverlap):
+def n_noise_psds(time_noises, fs, nperseg, noverlap=None):
     """
     Computes PSD of n time-domain noise realisations
 
@@ -132,10 +132,10 @@ def n_noise_psds(time_noises, fs, nperseg, noverlap):
     noise_psds = np.zeros((n, nperseg // 2 + 1))
 
     for i in range(n):
-        f_noise, noisePsd, _ = wosa(x=time_noises[i], fs=fs, nperseg=nperseg, noverlap=noverlap)
+        f_noise, noisePsd, _, nseg = wosa(x=time_noises[i], fs=fs, nperseg=nperseg, noverlap=noverlap)
         noise_psds[i] = noisePsd
 
-    return f_noise, noise_psds
+    return f_noise, noise_psds, nseg
 
 def compute_psd_noise_distribution(
     orig_psd,
@@ -182,12 +182,13 @@ def compute_psd_noise_distribution(
 
     # 2) find the original PSD at the closest frequency in orig_f
     closest_orig_idx = np.argmin(np.abs(orig_f - chosen_f_noise))
+    chosen_f_orig = orig_f[closest_orig_idx]
     orig_psd_val = orig_psd[closest_orig_idx]
 
     # 3) collect noise PSD values at that bin
     psd_noise_vals = noise_psds[:, idx]
 
-    return psd_noise_vals, orig_psd_val, chosen_f_noise
+    return psd_noise_vals, orig_psd_val, chosen_f_noise, chosen_f_orig
 
 
 
@@ -219,7 +220,7 @@ def psdTdiNoiseAveraged(
     dt    = obs[channel].dt.value
     fs    = 1.0 / dt
 
-    freqs, psd_true = wosa(
+    freqs, psd_true, _, _ = wosa(
         x          = data,
         fs         = fs,
         window     = window,
@@ -251,7 +252,7 @@ def psdTdiNoiseAveraged(
     # ------------------------------------------------------------------
     # 3) PSD of the synthetic noise record (same params as true PSD)
     # ------------------------------------------------------------------
-    _, psd_noise = wosa(
+    _, psd_noise, _, _ = wosa(
         x          = time_noise,
         fs         = fs,
         window     = window,
