@@ -106,7 +106,7 @@ def n_time_noise_from_psd(
 
     return time_noises
 
-def n_noise_psds(time_noises, fs, nperseg, noverlap=None):
+def n_noise_psds(time_noises, fs, nperseg, noverlap=None, window='hann'):
     """
     Computes PSD of n time-domain noise realisations
 
@@ -132,7 +132,7 @@ def n_noise_psds(time_noises, fs, nperseg, noverlap=None):
     noise_psds = np.zeros((n, nperseg // 2 + 1))
 
     for i in range(n):
-        f_noise, noisePsd, _, nseg = wosa(x=time_noises[i], fs=fs, nperseg=nperseg, noverlap=noverlap)
+        f_noise, noisePsd, _, nseg = wosa(x=time_noises[i], fs=fs, nperseg=nperseg, noverlap=noverlap, window=window)
         noise_psds[i] = noisePsd
 
     return f_noise, noise_psds, nseg
@@ -190,6 +190,57 @@ def compute_psd_noise_distribution(
 
     return psd_noise_vals, orig_psd_val, chosen_f_noise, chosen_f_orig
 
+def normalized_psd_residual(orig_psd:  np.ndarray,
+                            noise_psds: np.ndarray,
+                            N: int) -> np.ndarray:
+    """
+    Down-sample `orig_psd` so it lives on the same grid as `noise_psds`
+    (stride k = (len(orig_psd)-1)/(len(f_noise)-1)), then return
+      (orig_on_noise – mean_noise) / (std_noise/√N).
+
+    Parameters
+    ----------
+    orig_psd   : (M_fine,)   fine-grid PSD, e.g. length 10 001
+    noise_psds : (n_real, M_coarse) ensemble on coarse grid, e.g. length 2 501
+    N          : number of statistically-independent averages per PSD
+                 (σ_SE = σ / √N)
+
+    Returns
+    -------
+    residual   : (M_coarse,) normalised residual on the coarse grid
+    """
+    
+    # --- 1. statistics from the noise ensemble -----------------------
+    mean_noise = noise_psds.mean(axis=0)            # shape (M_coarse,)
+    std_noise  = noise_psds.std(axis=0, ddof=1)
+    err_bar    = std_noise / np.sqrt(N)             # σ_noise / √N
+
+    # --- 2. compute integer stride k ---------------------------------
+    M_fine   = orig_psd.size
+    M_coarse = noise_psds.shape[1]
+    if (M_fine - 1) % (M_coarse - 1) != 0:
+        raise ValueError(
+            f"(len(orig_psd)-1)/(len(f_noise)-1) must be integer; "
+            f"got ({M_fine}-1)/({M_coarse}-1)"
+        )
+    k = (M_fine - 1) // (M_coarse - 1)              # e.g. 4
+
+    # --- 3. down-sample orig_psd -------------------------------------
+    orig_on_noise = orig_psd[::k]                   # take every k-th
+    if orig_on_noise.size != M_coarse:              # guard against round-off
+        orig_on_noise = orig_on_noise[:M_coarse]
+
+    # print
+    print("size of noise array", orig_on_noise.size)
+    print("noise array", orig_on_noise[:10])
+    print("orig array", orig_psd[:10])
+
+    # --- 4. normalised residual --------------------------------------
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # residual = (orig_on_noise - mean_noise) / err_bar
+        residual = (orig_on_noise - mean_noise) / orig_on_noise
+
+    return residual
 
 
 ### The following function was a bad idea, cuz what if there is a discontinuity betweeen

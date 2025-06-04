@@ -8,7 +8,7 @@ def wosa(x,
              window: str | np.ndarray = "hann",
              detrend: str = "constant",
              scaling: str = "density",
-             average: str = "mean"
+             method: str = "mean"
 ):
     """
     Estimate the one-sided Power Spectral Density (PSD) of a real-valued
@@ -36,7 +36,7 @@ def wosa(x,
     -------
     f : (nfft//2 + 1,) ndarray
         Array of positive sample frequencies.
-    Pxx : ndarray
+    P : ndarray
         PSD (or power spectrum) estimated at `f`.
     """
 
@@ -101,20 +101,14 @@ def wosa(x,
     P_stack[:, 1:-1] *= 2       # one-sided correction (skip DC & Nyquist)
     P_stack *= scale            # convert |X|² → PSD [power/Hz] (or power)
 
-    # average or median across segments
-    if average == "mean":
+    # mean or median across segments
+    if method == "mean":
         P = P_stack.mean(axis=0)
-    elif average == "median":
+    elif method == "median":
         P = np.median(P_stack, axis=0)
     else:
-        raise ValueError("average must be 'mean' or 'median'")
+        raise ValueError("method must be 'mean' or 'median'")
     
-    Pxx = P
-    # one-sided PSD: multiply all of the positive-frequency bins (except DC and Nyquist) 
-    # by 2 to fold in the “missing” negative-frequency power
-    # P[1:-1] *= 2
-    # Pxx = P * scale
-
     f = np.fft.rfftfreq(nfft, d=1.0/fs)
     # print("Exiting custom wosa")
-    return f, Pxx, P_stack, nseg
+    return f, P, P_stack, nseg
