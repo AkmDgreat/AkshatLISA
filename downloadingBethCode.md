@@ -51,3 +51,7 @@ to the LDC directory, for me it is: `/Users/akmdgreat/Desktop/LISA/redownloading
 1. `echo $CONDA_PREFIX`: this should print something like `/Users/akmdgreat/anaconda3/envs/bethEnvTutorial`
 2. `export CPPFLAGS="-I${CONDA_PREFIX}/include"`
 3. `export LDFLAGS="-L${CONDA_PREFIX}/lib"`
+
+- While reading through "https://github.com/mikekatz04/BBHx?tab=readme-ov-file", I came across this useful advice: 
+
+"To install this software for CPU usage, you need gsl >2.0 , lapack (3.6.1), Python >3.4, and NumPy. If you install lapack with conda, the new version (3.9) seems to not install the correct header files. Therefore, the lapack version must be 3.6.1. To run the examples, you will also need jupyter and matplotlib. We generally recommend installing everything, including gcc and g++ compilers, in the conda environment as is shown in the examples here. This generally helps avoid compilation and linking issues. If you use your own chosen compiler, you will need to make sure all necessary information is passed to the setup command (see below). You also may need to add information to the setup.py file."

@@ -155,31 +155,68 @@ def plotLigoPsd(data,
     plt.tight_layout()
     plt.show()                         
 
-# plot the figures horizontally
-def plot(data, t, fs, f, psd, nper, title, bigtitle="PSD graphs"):
-    # 1×3 subplots, make it wide enough
+def plot(data, t, fs, f, psd, labels, title,
+         nper=None, bigtitle="PSD graphs"):
+    """
+    Plot a time-series and one or more PSD estimates side by side.
+
+    Parameters
+    ----------
+    data : array_like
+        Time-domain signal.
+    t : array_like
+        Time vector for `data`.
+    fs : float
+        Sampling frequency.
+    f : array_like
+        Frequency vector for the PSDs.
+    psd : array_like or list of array_like
+        One-sided PSD estimate(s). Can be a single 1D array or a list of them.
+    labels : str or list of str
+        Label(s) for each PSD curve. Can be a single string or a list of strings.
+    title : str
+        Y-axis label for the time-series plot.
+    nper : int, optional
+        Segment length used in PSD (for setting x-limits).
+    bigtitle : str, optional
+        Supertitle for the figure.
+    """
+    # wrap single inputs into lists
+    if not isinstance(psd, (list, tuple)):
+        psds = [psd]
+    else:
+        psds = psd
+
+    if not isinstance(labels, (list, tuple)):
+        labels = [labels]
+
+    if len(psds) != len(labels):
+        raise ValueError("`psd` and `labels` must have the same length")
+
+    # create 1×2 subplots
     fig, axes = plt.subplots(1, 2, figsize=(20, 4))
     fig.suptitle(bigtitle, fontsize=16)
 
-    # prep common quantities
-    f_min = fs / nper
-    f_max = fs / 2.0
-
     # 1) time-domain
-    ax = axes[0]
-    ax.plot(t, data)
-    ax.set_xlim(t[0], t[-1])
-    ax.set_xlabel("Time [s]")
-    ax.set_ylabel(title)
-    ax.set_title("Time series")
+    ax0 = axes[0]
+    ax0.plot(t, data)
+    ax0.set_xlim(t[0], t[-1])
+    ax0.set_xlabel("Time [s]")
+    ax0.set_ylabel(title)
+    ax0.set_title("Time series")
 
-    # 2) WOSA PSD (log–log)
-    ax = axes[1]
-    ax.loglog(f, psd)
-    ax.set_xlim(f_min, f_max)
-    ax.set_xlabel("Frequency [Hz]")
-    ax.set_ylabel("PSD [1/Hz]")
-    ax.set_title("WOSA (log-log)")
+    # 2) log–log PSD(s)
+    ax1 = axes[1]
+    for psd_array, label in zip(psds, labels):
+        ax1.loglog(f, psd_array, label=label)
+
+    if nper is not None:
+        ax1.set_xlim(fs/nper, fs/2.0)
+
+    ax1.set_xlabel("Frequency [Hz]")
+    ax1.set_ylabel("PSD [1/Hz]")
+    ax1.set_title("WOSA (log–log)")
+    ax1.legend()
     fig.tight_layout()
 
 def plot_orig_and_noise_psds(
@@ -279,6 +316,29 @@ def plot_noise_psds(
     plt.tight_layout()
     plt.show()
 
+from scripts.medianFuncs import median_exp_pdf
+
+def plot_median_histogram(noise_vals, N, scale,
+                          title="Histogram", n_bins=30):
+    fig, ax = plt.subplots()
+
+    # histogram
+    ax.hist(noise_vals, bins=n_bins, density=True,
+            alpha=0.6, edgecolor='k', label='Probability density')
+
+    # theoretical pdf
+    x   = np.linspace(0, noise_vals.max()*1.1, 500)
+    pdf = median_exp_pdf(x, N, scale=scale)
+    ax.plot(x, pdf, 'r-', lw=2, label='Exact median PDF')
+
+    # decorations
+    ax.set_xlabel("PSD")
+    ax.set_ylabel("Probability density")
+    ax.set_title(title)
+    ax.legend()
+    fig.tight_layout()
+    plt.show()
+
 def plot_psd_noise_histogram(
         noise_vals,
         original_psd_value,     # ≈ true PSD at that bin (μ)
@@ -307,21 +367,12 @@ def plot_psd_noise_histogram(
     pdf = (df/μ2) * chi2.pdf(df * x / μ2, df)   # rescaled χ²
     plt.plot(x, pdf, 'r-', lw=2, label=rf"$\chi^2_{{{df}}}$ Histogram average")
 
-    # ------------------------------------------------------------------
     # 1) “Original PSD” at this frequency bin (already in the code)
     plt.axvline(original_psd_value,
                 color='b', lw=2, ls='--',
                 label=f"Original PSD = {original_psd_value:.3e}")
 
-    # 2) Average (expected value) of the χ² model **for this bin**
-    #    → identical to μ, so plot only if you want to show it separately
-    #    (comment out if it feels redundant)
-    # chi2_mean = np.trapz(x * pdf, x)           # integrate to find the area
-    # plt.axvline(chi2_mean,
-    #             color='chocolate', lw=2, ls='--',
-    #             label=f"Chi mean = {chi2_mean:.3e}")
-
-    # 3) Mean of the the noise_vals (the mean of histogram)
+    # 2) Mean of the the noise_vals (the mean of histogram)
     mean_of_psd = np.mean(noise_vals)
     plt.axvline(mean_of_psd,
                 color='r', lw=2, ls='--',

@@ -124,6 +124,12 @@ def simulate_glitches(glitch_type, glitch_amp_type, glitch_beta_type, params):
         g = lisaglitch.IntegratedShapeletGlitch(inj_point=np.random.choice(inj_points),
                                                 t0=t0, size=size, dt=dt, t_inj=timesarr[j],
                                                 beta=beta[j], level=amp[j])
+
+        # g = lisaglitch.OneSidedDoubleExpGlitch(
+        #     inj_point=np.random.choice(inj_points),
+        #     t_rise, t_fall, level=1, **kwargs)
+        # lisaglitch.IntegratedShapeletGlitch(level=1, beta=1, **kwargs)
+        
         glitch_list.append(g)
         g.write(path=output_h5)
         if j % 100 == 0:

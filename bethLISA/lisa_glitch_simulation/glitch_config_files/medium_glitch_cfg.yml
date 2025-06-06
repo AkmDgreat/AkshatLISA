@@ -1,5 +1,5 @@
 seed: 1
-t_max: 86400 s
+t_max: 1000000 s
 t_min: 0 s
 dt: 5 s
 glitch_type: 'Equal Spacing'

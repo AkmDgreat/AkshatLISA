@@ -106,7 +106,7 @@ def n_time_noise_from_psd(
 
     return time_noises
 
-def n_noise_psds(time_noises, fs, nperseg, noverlap=None, window='hann'):
+def n_noise_psds(time_noises, fs, nperseg, noverlap=None, window='hann', method='mean'):
     """
     Computes PSD of n time-domain noise realisations
 
@@ -132,7 +132,7 @@ def n_noise_psds(time_noises, fs, nperseg, noverlap=None, window='hann'):
     noise_psds = np.zeros((n, nperseg // 2 + 1))
 
     for i in range(n):
-        f_noise, noisePsd, _, nseg = wosa(x=time_noises[i], fs=fs, nperseg=nperseg, noverlap=noverlap, window=window)
+        f_noise, noisePsd, _, nseg = wosa(x=time_noises[i], fs=fs, nperseg=nperseg, noverlap=noverlap, window=window, method=method)
         noise_psds[i] = noisePsd
 
     return f_noise, noise_psds, nseg
