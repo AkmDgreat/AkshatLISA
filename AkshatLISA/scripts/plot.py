@@ -155,31 +155,12 @@ def plotLigoPsd(data,
     plt.tight_layout()
     plt.show()                         
 
-def plot(data, t, fs, f, psd, labels, title,
-         nper=None, bigtitle="PSD graphs"):
+def plot(data, t, f, psd, labels, title,
+         show_time_series=True,
+         nper=None, fs=None, bigtitle=None, vlines=None, logpsd=False):
     """
-    Plot a time-series and one or more PSD estimates side by side.
-
-    Parameters
-    ----------
-    data : array_like
-        Time-domain signal.
-    t : array_like
-        Time vector for `data`.
-    fs : float
-        Sampling frequency.
-    f : array_like
-        Frequency vector for the PSDs.
-    psd : array_like or list of array_like
-        One-sided PSD estimate(s). Can be a single 1D array or a list of them.
-    labels : str or list of str
-        Label(s) for each PSD curve. Can be a single string or a list of strings.
-    title : str
-        Y-axis label for the time-series plot.
-    nper : int, optional
-        Segment length used in PSD (for setting x-limits).
-    bigtitle : str, optional
-        Supertitle for the figure.
+    Plot a time-series and one or more PSD estimates side by side,
+    or just the PSD if show_time_series=False.
     """
     # wrap single inputs into lists
     if not isinstance(psd, (list, tuple)):
@@ -193,31 +174,86 @@ def plot(data, t, fs, f, psd, labels, title,
     if len(psds) != len(labels):
         raise ValueError("`psd` and `labels` must have the same length")
 
-    # create 1×2 subplots
-    fig, axes = plt.subplots(1, 2, figsize=(20, 4))
-    fig.suptitle(bigtitle, fontsize=16)
+    # choose layout
+    ncols = 2 if show_time_series else 1
+    fig, axes = plt.subplots(1, ncols, figsize=(5*ncols, 4))
 
-    # 1) time-domain
-    ax0 = axes[0]
-    ax0.plot(t, data)
-    ax0.set_xlim(t[0], t[-1])
-    ax0.set_xlabel("Time [s]")
-    ax0.set_ylabel(title)
-    ax0.set_title("Time series")
+    if bigtitle is not None:
+        fig.suptitle(bigtitle, fontsize=16)
+
+    # if only one axis, wrap it in a list so indexing below still works
+    if ncols == 1:
+        axes = [axes]
+
+    # 1) time-domain (optional)
+    if show_time_series:
+        ax0 = axes[0]
+        ax0.plot(t, data)
+        ax0.set_xlim(t[0], t[-1])
+        ax0.set_xlabel("Time [s]")
+        ax0.set_ylabel(title)
+        ax0.set_title("Time series")
 
     # 2) log–log PSD(s)
-    ax1 = axes[1]
+    ax1 = axes[-1]
     for psd_array, label in zip(psds, labels):
-        ax1.loglog(f, psd_array, label=label)
+        if (logpsd):
+            ax1.plot(f, psd_array, label=label)
+            ax1.set_yscale('log')
+        else:
+            ax1.loglog(f, psd_array, label=label)
 
-    if nper is not None:
-        ax1.set_xlim(fs/nper, fs/2.0)
+    # uncomment to remove limits 
+    # if (nper is not None) and (fs is not None):
+    #     ax1.set_xlim(fs/nper, fs/2.0)
+    
+    if vlines is not None:
+        # make whatever the user passed iterable
+        for v in np.atleast_1d(vlines):
+            ax1.axvline(v, ls=":", lw=1, color="k", alpha=0.6)
 
     ax1.set_xlabel("Frequency [Hz]")
-    ax1.set_ylabel("PSD [1/Hz]")
-    ax1.set_title("WOSA (log–log)")
+    ax1.set_ylabel("PSD (LISA)")
+    # ax1.set_title("WOSA (log–log)")
     ax1.legend()
+
+    ax0.grid(False)
+    ax1.grid(False)
+
     fig.tight_layout()
+    return fig, axes
+
+# def draw_segments(t, data, nperseg, noverlap):
+#     N = len(data)
+#     plt.figure()
+#     plt.plot(t, data)
+#     step = nperseg - noverlap
+#     starts = np.arange(0, N, step)
+#     for start in starts:
+#         end = start + nperseg
+#         plt.axvline(start, color='C0', linestyle='--')
+#         plt.axvline(min(end, N-1), color='C1', linestyle='--')
+#     plt.show()
+
+def draw_segments(t, data, nperseg, noverlap):
+    N = len(data)
+    step = nperseg - noverlap
+    starts = np.arange(0, N, step)
+
+    plt.figure()
+    plt.plot(t, data)
+    plt.xlim(t[0], t[-1])
+
+    for start in starts:
+        # always draw the start line
+        plt.axvline(t[start], color='C1', linestyle='--')
+        # only draw an end line if it falls inside the data
+        end = start + nperseg
+        if end < N:
+            plt.axvline(t[end], color='C0', linestyle='--')
+
+    plt.show()
+
 
 def plot_orig_and_noise_psds(
     f_orig,
@@ -318,20 +354,54 @@ def plot_noise_psds(
 
 from scripts.medianFuncs import median_exp_pdf
 
-def plot_median_histogram(noise_vals, N, scale,
-                          title="Histogram", n_bins=30):
+def plot_median_histogram(noise_vals, N, scale, labels,
+                          title="Histogram", n_bins=30, cl=None, conf=None):
+
+    # Histogram
     fig, ax = plt.subplots()
-
-    # histogram
     ax.hist(noise_vals, bins=n_bins, density=True,
-            alpha=0.6, edgecolor='k', label='Probability density')
+            alpha=0.6, edgecolor='k', label='Empirical PDF')
+    # ax.hist(noise_vals, bins=n_bins,
+    #         alpha=0.6, edgecolor='k', label='Empirical PDF')
 
-    # theoretical pdf
-    x   = np.linspace(0, noise_vals.max()*1.1, 500)
-    pdf = median_exp_pdf(x, N, scale=scale)
-    ax.plot(x, pdf, 'r-', lw=2, label='Exact median PDF')
+    x = np.linspace(0, noise_vals.max() * 1.1, 500)
+    scales = np.atleast_1d(scale)
 
-    # decorations
+    # Handle labels
+    labels = np.atleast_1d(labels)
+    if labels.size != scales.size:
+        raise ValueError("`labels` and `scale` must have the same length")
+    plot_labels = labels
+
+    # Plot one curve per scale
+    for s, lbl in zip(scales, plot_labels):
+        pdf = median_exp_pdf(x, N, scale=s)
+        # print(pdf)
+        # ax.axvline(np.mean(pdf), linestyle='--', label="Mean of curve")
+        # print(f"PDF mean: {np.mean(pdf)}")
+
+        # 1.  Normalise (robust against finite grid error)
+        pdf /= np.trapz(pdf, x)         
+
+        # 2.  Numerical expectation  μ = ∫ x f(x) dx
+        mu = np.trapz(x * pdf, x)        # or: dx = x[1]-x[0];  mu = np.sum(x*pdf)*dx
+
+        # 3.  Plot the mean of the theoretical curve
+        ax.axvline(mu,
+                linestyle='-.',
+                color='tab:orange',
+                label=f'Mean of {lbl}')
+                
+        ax.plot(x, pdf, lw=2, label=lbl)
+    
+    ax.axvline(np.mean(noise_vals), linestyle='--', label="Mean of histogram")
+    print(f"histogram: {noise_vals}")
+    # Add CI lines if given
+    if cl is not None and conf is not None:
+        pct = int(conf * 100)
+        ax.axvline(cl[0], linestyle='--', label=f'Lower {pct}% CI')
+        ax.axvline(cl[1], linestyle='--', label=f'Upper {pct}% CI')
+
     ax.set_xlabel("PSD")
     ax.set_ylabel("Probability density")
     ax.set_title(title)

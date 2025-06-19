@@ -57,14 +57,15 @@ def init_cl():
 
     return args
 
-def simulate_glitches(glitch_type, glitch_amp_type, glitch_beta_type, params):
+def simulate_glitches(glitch_type, glitch_amp_type, glitch_beta_type, params, useIntegratedShapeletGlitch=False):
     """
     Simulate glitches based off the glitch_type (the type of distribution for injected timing) and the given parameters
     params should match what's needed for the given glitch_type
     """
 
     # List of the injection points to sample from
-    inj_points = ['tm_12', 'tm_23', 'tm_31', 'tm_13', 'tm_32', 'tm_21']
+    inj_points = ['tm_12']#, 'tm_23', 'tm_31', 'tm_13', 'tm_32', 'tm_21']
+    # inj_points = ['tm_12', 'tm_23', 'tm_31', 'tm_13', 'tm_32', 'tm_21']
 
     # no_noise, no_gaps = params['no_noise'], params['no_gaps']  # TODO add this feature
     
@@ -119,15 +120,31 @@ def simulate_glitches(glitch_type, glitch_amp_type, glitch_beta_type, params):
     # Produce glitches
     glitch_list = []
     print(amp)
+    # amp = np.sqrt(np.absolute(amp))
+
     for j in range(number_samples):
         print('-- Sample --', j, 'of ', number_samples)
-        g = lisaglitch.IntegratedShapeletGlitch(inj_point=np.random.choice(inj_points),
-                                                t0=t0, size=size, dt=dt, t_inj=timesarr[j],
-                                                beta=beta[j], level=amp[j])
-
-        # g = lisaglitch.OneSidedDoubleExpGlitch(
-        #     inj_point=np.random.choice(inj_points),
-        #     t_rise, t_fall, level=1, **kwargs)
+        if (useIntegratedShapeletGlitch):
+            g = lisaglitch.IntegratedShapeletGlitch(
+                inj_point=np.random.choice(inj_points),
+                t0=t0, 
+                size=size, 
+                dt=dt, 
+                t_inj=timesarr[j],
+                beta=beta[j], 
+                level=amp[j])
+        else:
+            g = lisaglitch.OneSidedDoubleExpGlitch(
+                inj_point=np.random.choice(inj_points),
+                t0=t0, 
+                size=size, 
+                dt=dt,
+                t_inj=timesarr[j],
+                t_rise=params["t_rise"],
+                t_fall=params["t_fall"],
+                level=amp[j]
+            )
+        
         # lisaglitch.IntegratedShapeletGlitch(level=1, beta=1, **kwargs)
         
         glitch_list.append(g)
@@ -153,9 +170,16 @@ def simulate_glitches(glitch_type, glitch_amp_type, glitch_beta_type, params):
 
     with open(f'{output_txt}', 'a') as f:
         for g in glitch_list:
-            f.write(str(g.generator) + "  " + str(g.size) + "  " + str(g.dt) + "  " + str(params['physic_upsampling'])
+            if (useIntegratedShapeletGlitch):
+                f.write(str(g.generator) + "  " + str(g.size) + "  " + str(g.dt) + "  " + str(params['physic_upsampling'])
                     + "  " + str(g.t0) + "  " + str(g.t_inj) + "  " + str(g.inj_point) + "  " +
-                    str(g.beta) + "  " + str(g.level) + "  " + "\n")
+                    str(g.beta) + 
+                    "  " + str(g.level) + "  " + "\n")
+            else:
+                f.write(str(g.generator) + "  " + str(g.size) + "  " + str(g.dt) + "  " + str(params['physic_upsampling'])
+                    + "  " + str(g.t0) + "  " + str(g.t_inj) + "  " + str(g.inj_point) + "  " +
+                    "yo" + 
+                    "  " + str(g.level) + "  " + "\n")  
 
 
 def main(args):
@@ -176,7 +200,9 @@ def main(args):
                     'glitch_h5_mg_output': PATH_io + args.glitch_h5_mg_output,
                     'glitch_txt_mg_output': PATH_io + args.glitch_txt_mg_output,
                     'amp_set': [float(cfg["amp_set_min"]), float(cfg["amp_set_max"])],
-                    'cfg': cfg, 'pipe_cfg': pipe_cfg}
+                    'cfg': cfg, 'pipe_cfg': pipe_cfg,
+                    "t_fall": cfg["t_fall"],
+                    "t_rise": cfg["t_rise"]}
 
     if glitch_type == "Poisson" or glitch_type == "poisson":
         params_dict['glitch_rate'] = cfg["glitch_rate"]

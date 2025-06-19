@@ -111,4 +111,10 @@ def wosa(x,
     
     f = np.fft.rfftfreq(nfft, d=1.0/fs)
     # print("Exiting custom wosa")
+
+    # return the "how many segments were averaged" array
+    # it is constant for WOSA, but for logPSD, it is different 
+    nseg = np.full(nfft//2 + 1, nseg)
+
+    # fact: f.length = P.length = nseg.length
     return f, P, P_stack, nseg

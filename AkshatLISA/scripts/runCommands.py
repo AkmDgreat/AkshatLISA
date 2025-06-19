@@ -10,6 +10,8 @@ def run_make_and_inject(
     cfg_pipeline: str = "pipeline_cfg.yml",
     cfg_glitch: str = "glitch_cfg_day.yml",
     tdi_final: str = "day_glitch_tdi.h5",
+    # pre_tdi_data: str = "pre_tdi.h5",
+    # pre_tdi_plot: str = "pre_tdi_plot.png",
     glitches: str = "true",
     noise: str = "true"
 ):
@@ -31,6 +33,8 @@ def run_make_and_inject(
         "--glitch-h5-mg-output", h5_out,
         "--glitch-txt-mg-output", txt_out,
         "--tdi-output-file",      tdi_final,
+        # "--pre-tdi-data",         pre_tdi_data,
+        # "--pre-tdi-plot",         pre_tdi_plot,
         "--glitches", glitches,
         "--noise", noise,
     ]

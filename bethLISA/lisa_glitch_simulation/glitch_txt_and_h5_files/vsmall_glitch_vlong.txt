@@ -1,0 +1,2 @@
+generator  size  dt  physics_upsampling  t0  t_inj  inj_point  beta  level  
+OneSidedDoubleExpGlitch  2000000  5.0  1  0.0  7000000.0  tm_12  yo  4.801122639879959e-12  

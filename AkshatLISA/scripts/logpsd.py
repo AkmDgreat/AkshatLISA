@@ -60,13 +60,16 @@ def logpsd(x,
     # 2. Build the optimised grid {L_k}, {f_k}
     # ------------------------------------------------------------------
     Lk_list, fk_list = [], []
-    k = 1          # MATLAB / paper indexing starts at 1
+    string_arr = []
+    k = 1          
     while True:
         # segment length L_k
         if k == 1 or k <= Q:
             Lk = L1
+            string_arr.append("L_1")
         else:
             Lk = int(np.floor(r**(k-Q) * L1))   # eq. 2.18
+            string_arr.append(f"({r})^{k-Q} L_1")
             if Lk < M + 1:                      # segments got too short
                 break
         
@@ -81,15 +84,19 @@ def logpsd(x,
     f_opt = np.asarray(fk_list)
     P_opt = np.empty_like(f_opt)
     
+    print(string_arr)
+    print(f"Lk_list: {Lk_list}")
+    print(f"fk_list: {fk_list}")
     # ------------------------------------------------------------------
     # 3. Estimate the PSD at every (L_k, f_k)
     #    • run Welch/WOSA with segment length L_k
     #    • discard the first M bins           (paper step 5)
     #    • pick the bin closest to f_k
     # ------------------------------------------------------------------
+    nseg_arr = np.empty_like(f_opt)
     for j, (Lk, fk) in enumerate(zip(Lk_list, f_opt)):
         noverlap = int(overlap * Lk)
-        f, Pxx, _, _ = wosa(x,
+        f, Pxx, _, nseg = wosa(x,
                        fs=fs,
                        window=window,
                        nperseg=Lk,
@@ -98,5 +105,6 @@ def logpsd(x,
         f, Pxx = f[M:], Pxx[M:]                # drop window-affected bins
         idx    = np.abs(f - fk).argmin()       # nearest bin
         P_opt[j] = Pxx[idx]
+        nseg_arr[j] = nseg[0] # cuz each of the nseg returned from wosa is an array 
     
-    return f_opt, P_opt
+    return f_opt, P_opt, nseg_arr

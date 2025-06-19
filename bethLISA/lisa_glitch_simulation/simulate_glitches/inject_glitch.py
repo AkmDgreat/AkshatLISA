@@ -13,13 +13,36 @@ from gwpy.timeseries import TimeSeries, TimeSeriesDict
 from lisainstrument.containers import ForEachMOSA
 from lisainstrument import Instrument
 from pytdi import Data
+from pathlib import Path
 
 start_time = time.time()  
 
-PATH_cd = os.getcwd()
-PATH_lgs = os.path.abspath(os.path.join(PATH_cd, os.pardir))  # PATH to lisa_glitch_simulation directory
-PATH_io = os.path.join(os.path.abspath(os.path.join(PATH_cd, os.pardir)), 'glitch_txt_and_h5_files')
-PATH_tdi_out = os.path.join(PATH_lgs, 'tdi_outputs')
+# PATH_lgs = os.path.abspath(
+#     os.path.join(
+#         os.getcwd(), 
+#         os.pardir
+#     )
+# )  # PATH to lisa_glitch_simulation directory
+
+# PATH_io = os.path.join(
+#     os.path.abspath(
+#         os.path.join(
+#             os.getcwd(), 
+#             os.pardir)
+#         ), 
+#     'glitch_txt_and_h5_files'
+# )
+# PATH_tdi_out = os.path.join(
+#     PATH_lgs, 
+#     'tdi_outputs'
+# )
+
+BASE_DIR     = Path(__file__).resolve().parent.parent
+PATH_lgs     = BASE_DIR
+PATH_io      = BASE_DIR / 'glitch_txt_and_h5_files'
+PATH_tdi_out = BASE_DIR / 'tdi_outputs'
+# PATH_pre_tdi_plot = BASE_DIR / 'pre_tdi_plot'
+# PATH_pre_tdi = BASE_DIR / 'pre_tdi_data'
 
 TDI_VAR = [X2, Y2, Z2]
 TDI_NAMES = ['X', 'Y', 'Z']
@@ -29,6 +52,8 @@ args=(
     --glitch-h5-mg-output     glitch.h5 
     --glitch-txt-mg-output    glitch.txt 
     --tdi-output-file         final_tdi.h5 
+    --pre-tdi-data            pre_tdi.h5
+    --pre-tdi-plot            pre_tdi_plot.png
     --glitches true
     --noise true
 )
@@ -61,17 +86,18 @@ def init_cl():
     parser.add_argument(
         '--path-output', 
         type=str, 
-        default=PATH_cd, 
+        default=os.getcwd(), 
         help="Path to save output tdi files"
     )
     parser.add_argument('--glitch-h5-mg-output', type=str, default="glitch.h5", help="Glitch output h5 file")
     parser.add_argument('--glitch-txt-mg-output', type=str, default="glitch.txt", help="Glitch output txt file")
-    parser.add_argument('--tdi-output-file', type=str, default="final_tdi", help="tdi output h5 file")
-
+    # parser.add_argument('--pre-tdi-plot', type=str, default="pre_tdi_plot.png", help="Path to save the plot for pre TDI")
+    parser.add_argument('--tdi-output-file', type=str, default="final_tdi", help="tdi output h5 file")    
+    # parser.add_argument('--pre-tdi-data', type=str, default="pre_tdi", help="pre tdi h5 file")
     parser.add_argument('--glitches', type=str2bool, default=False, help="Want Glitches?")
-
     parser.add_argument('--noise', type=bool, default=True, help="Want noise?")
     parser.add_argument('-l', '--log', default="", help="Log file")
+
     args = parser.parse_args()
     logger = init_logger(args.log, name='lisaglitch.glitch')
 
@@ -130,7 +156,14 @@ def init_inputs(glitch_info, old_file=False):
     }
 
 
-def simulate_lisa(glitch_file, glitch_inputs, noise, glitches):
+def simulate_lisa(
+    glitch_file, 
+    glitch_inputs, 
+    noise, 
+    glitches 
+    # preTdiPath, 
+    # plotPath
+):
     """Simulate the LISA instrument, optionally injecting glitches and noise."""
     # Extract common parameters
     noise_dict = glitch_inputs['noise_dict']
@@ -167,8 +200,11 @@ def simulate_lisa(glitch_file, glitch_inputs, noise, glitches):
     else:
         instrument.disable_all_noises()
 
-    # Run the simulation and return
+    # Run the simulation and save the pre-tdi-plus-glitch
+    # instrument.write(preTdiPath)
+    # instrument.plot_fluctuations(output=plotPath)
     instrument.simulate()
+
     return instrument
 
 
@@ -224,7 +260,14 @@ def main(args):
     tdi_start_t = time.time()
 
     inputs = init_inputs(args.glitch_txt_mg_output, old_file=True)
-    sim = simulate_lisa(PATH_io + '/' + args.glitch_h5_mg_output, inputs, args.noise, args.glitches)
+    sim = simulate_lisa(
+        glitch_file = str(PATH_io) + '/' + args.glitch_h5_mg_output, 
+        glitch_inputs = inputs, 
+        noise = args.noise, 
+        glitches = args.glitches,
+        # preTdiPath = PATH_pre_tdi + '/' + args.pre_tdi_data,
+        # plotPath = PATH_pre_tdi_plot + '/' + args.pre_tdi_plot
+    )
     tdi_dict = tdi_channels(sim, TDI_VAR, inputs, TDI_NAMES)
     save_tdi(tdi_dict, args.tdi_output_file, PATH_tdi_out)
 
