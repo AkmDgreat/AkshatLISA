@@ -355,14 +355,12 @@ def plot_noise_psds(
 from scripts.medianFuncs import median_exp_pdf
 
 def plot_median_histogram(noise_vals, N, scale, labels,
-                          title="Histogram", n_bins=30, cl=None, conf=None):
+                          title="Histogram", n_bins=30, cl=None, conf=None, median_method='lower'):
 
     # Histogram
     fig, ax = plt.subplots()
     ax.hist(noise_vals, bins=n_bins, density=True,
             alpha=0.6, edgecolor='k', label='Empirical PDF')
-    # ax.hist(noise_vals, bins=n_bins,
-    #         alpha=0.6, edgecolor='k', label='Empirical PDF')
 
     x = np.linspace(0, noise_vals.max() * 1.1, 500)
     scales = np.atleast_1d(scale)
@@ -375,11 +373,8 @@ def plot_median_histogram(noise_vals, N, scale, labels,
 
     # Plot one curve per scale
     for s, lbl in zip(scales, plot_labels):
-        pdf = median_exp_pdf(x, N, scale=s)
-        # print(pdf)
-        # ax.axvline(np.mean(pdf), linestyle='--', label="Mean of curve")
-        # print(f"PDF mean: {np.mean(pdf)}")
-
+        pdf = median_exp_pdf(x, N, scale=s, method=median_method)
+       
         # 1.  Normalise (robust against finite grid error)
         pdf /= np.trapz(pdf, x)         
 
