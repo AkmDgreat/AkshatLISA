@@ -4,7 +4,7 @@ from scipy.stats import chi2
 import warnings
 from scipy.special import gammainccinv          # inverse Q(a,x)
 from scipy.integrate import quad
-from scipy.special import digamma
+from scipy.special import digamma, gamma
 from numpy.typing import ArrayLike
 from typing import Tuple
 
@@ -44,6 +44,12 @@ def harmonic_factor(N, method='lower'):
         n = (N - 1) // 2
         return digamma(N + 1) - digamma(n + 1)
 
+    # Several methods to choose from in the even case
+    if method == 'scott':
+        m = N / 2.0
+        print(f"m is {m}") 
+        return digamma(N + 1) - digamma(m)
+
     m = N // 2                      # even N = 2m
     if method == 'lower':
         return digamma(N + 1) - digamma(m + 1)
@@ -63,16 +69,20 @@ def order_stat_pdf(v, N, k, f, F):
     Parameters
     ----------
     v : float or array_like
-    N : int             Sample size (N >= 1)
+    N : int             Sample size (N >= 1) (or float)
     k : int             Order (1 <= k <= N)
     f : callable        Population pdf  f(x)
     F : callable        Population cdf  F(x)
     """
     if not (1 <= k <= N):
         raise ValueError("k must be between 1 and N inclusive")
-
     v = np.asarray(v)
-    coeff = factorial(N) // (factorial(k - 1) * factorial(N - k))
+
+    if isinstance(k, float):
+        coeff = gamma(N) // (gamma(k - 1) * gamma(N - k))
+    else:
+        coeff = factorial(N) // (factorial(k - 1) * factorial(N - k))
+
     return coeff * (F(v) ** (k - 1)) * ((1 - F(v)) ** (N - k)) * f(v)
 
 def median_pdf(v, N, f, F, method='lower'):
@@ -81,6 +91,10 @@ def median_pdf(v, N, f, F, method='lower'):
         k = (N + 1) // 2
         return order_stat_pdf(v, N, k, f, F)
     else:                   # even
+        if method == 'scott':
+            n = N / 2.0
+            print(f"n = {n}")
+            return order_stat_pdf(v, N, n, f, F)
         n = N // 2
         if method == 'lower':
             return order_stat_pdf(v, N, n, f, F)

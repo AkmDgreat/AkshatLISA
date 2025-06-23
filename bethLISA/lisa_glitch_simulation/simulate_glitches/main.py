@@ -1,79 +1,105 @@
+from make_glitch import make_glitch
+from inject_glitch import inject_glitch
+import argparse
+
 """
-main file to run both make_glitch and simulate glitch as one
-they both however can be run separately
+args=(
+    --glitch_cfg_input      glitch_exact.yml
+    --glitch_output_h5      glitch_exact.h5
+    --glitch_output_txt     glitch_exact.txt
+    --tdi_output_h5         glitch_exact.h5
+    --simulation_output_h5  glitch_exact.h5
+    --pipe_cfg_input        pipeline_cfg.yml
+    --orbit_input_h5        orbits.h5
+)
+
+python main.py "${args[@]}"
 """
-
-import os
-import make_glitch as mg
-import ldc.io.yml as ymlio
-import inject_glitch as ig
-from ldc.utils.logging import init_logger
-
-
-PATH_cd = os.getcwd()
-PATH_lgs = os.path.abspath(os.path.join(PATH_cd, os.pardir))  # PATH to lisa_glitch_simulation directory
-PATH_test = os.path.join(PATH_lgs, 'testing/')
-PATH_io = os.path.join(PATH_lgs, 'input_output')
-PATH_tdi_out = os.path.join(PATH_lgs, 'final_tdi_outputs')
-
 
 def init_cl():
+    """Initialize commandline arguments and return Namespace object with all
+    given commandline arguments.
+    """
 
-    import argparse
     parser = argparse.ArgumentParser()
-    # inject_glitch arguments
-    parser.add_argument('--path-input', type=str, default=PATH_io, help="Path to input glitch files")
-    parser.add_argument('--path-output', type=str, default=PATH_tdi_out, help="Path to save output tdi files")
-    parser.add_argument('--glitch-h5-mg-output', type=str, default="glitch", help="Glitch output h5 file")
-    parser.add_argument('--glitch-txt-mg-output', type=str, default="glitch", help="Glitch output txt file")
-    parser.add_argument('--tdi-output-file', type=str,
-                        default="final_tdi", help="Glitch output h5 file for inject_glitch")
 
-    # make_glitch arguments
-    parser.add_argument('--config-input', type=str, default="pipeline_cfg", help="Pipeline config file")
-    parser.add_argument('--glitch-config-input', type=str, default="glitch_cfg", help="Glitch config file")
-    # parser.add_argument('--no-noise', type=bool, default=False, help="Whether or not to add noise")
-    # parser.add_argument('--no-gaps', type=bool, default=True, help="Whether or not to add gaps")
-    parser.add_argument('--testing', type=bool, default=False, help="Testing")
-    parser.add_argument('--clean', type=bool, default=False, help="Clean data set")
-    parser.add_argument('-l', '--log', default="", help="Log file")
+    # FILE MANAGEMENT
+    parser.add_argument(
+        "--pipe_cfg_input",
+        type=str,
+        default="",
+        help="Pipeline config file name"
+    )
+    parser.add_argument(
+        "--glitch_cfg_input",
+        type=str,
+        default="",
+        help="Glitch config file name",
+    )
+    parser.add_argument(
+        "--orbit_input_h5",
+        type=str,
+        default="orbits.h5",
+        help="Orbit .h5 file name",
+    )
+    parser.add_argument(
+        "--glitch_output_h5",
+        type=str,
+        default="default_glitch_output.h5",
+        help="Glitch output .h5 file name",
+    )
+    parser.add_argument(
+        "--glitch_output_txt",
+        type=str,
+        default="default_glitch_output.txt",
+        help="Glitch output .txt file name",
+    )
+    parser.add_argument(
+        "--tdi_output_h5",
+        type=str,
+        default="default_tdi_output.h5",
+        help="TDI output .h5 file name",
+    )
+    parser.add_argument(
+        "--simulation_output_h5",
+        type=str,
+        default="default_simulation_output.h5",
+        help="LISA simulation output .h5 file name",
+    )
 
-    args = parser.parse_args()
-    logger = init_logger(args.log, name='lisaglitch.glitch')
+    # LISA INSTRUMENT ARGUMENTS
+    parser.add_argument(
+        "--disable_noise",
+        type=bool,
+        default=False,
+        help="Simulate LISA instruments without noise?"
+    )
 
-    return args
+    # SEED
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed to ensure deterministic outputs"
+    )
+
+    return parser.parse_args()
 
 
-def prep_config(glitch_config, segments):
+def main():
+    args = init_cl()
 
-    cfg = ymlio.load_config(PATH_test + glitch_config)
-    t_max = cfg["t_max"].to("s").value
+    make_glitch(args)
 
-    if t_max % segments == 0.0:
-        ...  # TODO what even is this
-    else:
-        segments += 1
+    inject_glitch(
+        args.orbit_input_h5,
+        args.glitch_output_h5,
+        args.glitch_output_txt,
+        args.simulation_output_h5,
+        args.tdi_output_h5,
+        args.disable_noise,
+    )
 
 
 if __name__ == "__main__":
-
-    main_args = init_cl()
-    print('main_args', main_args)
-
-    print('-- INTO make_glitch --')
-    # create glitches
-    glitch_file_h5, glitch_file_txt = mg.main(main_args)
-    print('-- DONE make_glitch --')
-
-    if main_args.clean:
-        print('-- INTO inject_glitch --')
-        ig.main(glitch_file_h5, glitch_file_txt, main_args.tdi_output_file, clean=main_args.clean)
-        print('-- DONE inject_glitch --')
-    else:
-        # inject glitches
-        print('-- INTO inject_glitch --')
-        ig.main(glitch_file_h5, glitch_file_txt, main_args.tdi_output_file)
-        print('-- DONE inject_glitch --')
-
-
-
+    main()

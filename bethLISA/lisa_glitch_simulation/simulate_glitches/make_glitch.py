@@ -3,221 +3,409 @@ import sys
 import lisaglitch
 import numpy as np
 import ldc.io.yml as ymlio
-from ldc.utils.logging import init_logger, close_logger
-from distributions import glitch_times, amplitude_dist, betas_dist
+import argparse
+import distributions
+import h5py
 
-PATH_cd = os.getcwd()
-PATH_lgs = os.path.abspath(os.path.join(PATH_cd, os.pardir))  # PATH to lisa_glitch_simulation directory
-PATH_lisa = os.path.abspath(os.path.join(PATH_cd, os.pardir + '/' + os.pardir))
-PATH_test = os.path.join(os.path.abspath(os.path.join(PATH_cd, os.pardir)), 'glitch_config_files/')
-PATH_io = os.path.join(PATH_lgs, 'glitch_txt_and_h5_files/')
 
-"""
-args=(
-    --glitch-h5-mg-output     glitch.h5 
-    --glitch-txt-mg-output    glitch.txt 
-    --tdi-output-file         mg_tdi.h5 
-    --config-input            pipeline_cfg.yml 
-    --glitch-config-input     glitch_cfg_day.yml
-)
+PATH_src = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
+PATH_bethLISA = os.path.abspath(os.path.join(PATH_src, os.pardir))
+PATH_glitch_config = os.path.join(PATH_bethLISA, "dist/glitch_config/")
+PATH_pipeline_config = os.path.join(PATH_bethLISA, "dist/pipeline_config/")
+PATH_glitch_data = os.path.join(PATH_bethLISA, "dist/glitch_data/")
+PATH_simulation_data = os.path.join(PATH_bethLISA, "dist/simulation_data/")
+PATH_tdi_data = os.path.join(PATH_bethLISA, "dist/tdi_data/")
+PATH_orbit_data = os.path.join(PATH_bethLISA, "dist/orbit_data/")
 
-python make_glitch.py "${args[@]}"
-"""
 
+# TODO: Add useful help descriptions
 def init_cl():
-    """ initialize command line inputs """
+    """Initialize commandline arguments and return Namespace object with all
+    given commandline arguments.
+    """
 
-    import argparse
     parser = argparse.ArgumentParser()
-    print('-- IN init_cl --')
-    
-    # Main arguments
-    parser.add_argument('--path-input', type=str, default="", help="Path to config files")
-    parser.add_argument('--path-output', type=str, default="", help="Path to save output files")
 
-    parser.add_argument('--glitch-h5-mg-output', type=str, default="glitch.h5", help="Glitch output h5 file")
-    parser.add_argument('--glitch-txt-mg-output', type=str, default="glitch.txt", help="Glitch output txt file")
-    parser.add_argument('--tdi-output-file', type=str,
-                        default="final_tdi", help="Glitch output h5 file for inject_glitch")
-    # parser.add_argument('--tdi-txt-output', type=str, default="", help="Glitch output txt file for inject_glitch")
+    # FILE MANAGEMENT
+    parser.add_argument(
+        "--glitch_output_h5",
+        type=str,
+        default="default_glitch_output.h5",
+        help="Glitch output h5 file name",
+    )
+    parser.add_argument(
+        "--glitch_output_txt",
+        type=str,
+        default="default_glitch_output.txt",
+        help="Glitch output txt file name",
+    )
+    parser.add_argument(
+        "--glitch_cfg_input",
+        type=str,
+        help="Glitch config file name",
+    )
+    parser.add_argument(
+        "--pipe_cfg_input",
+        type=str,
+        help="Pipeline config file name",
+    )
 
-    parser.add_argument('--config-input', type=str, default="pipeline_cfg.yml", help="Pipeline config file")
-    parser.add_argument('--glitch-config-input', type=str, default="glitch_cfg_example.yml", help="Glitch config file")
+    # GLITCH ARGUMENTS
+    parser.add_argument(
+        "--glitch_type",
+        type=str,
+        default="Poisson",
+        help=""
+    )
+    parser.add_argument(
+        "--amp_type",
+        type=str,
+        default="Gaussian",
+        help=""
+    )
+    parser.add_argument(
+        "--beta_type",
+        type=str,
+        default="Exponential",
+        help=""
+    )
+    parser.add_argument(
+        "--t_min",
+        type=float,
+        default=0.0,
+        help=""
+    )
+    parser.add_argument(
+        "--t_max",
+        type=float,
+        default=6307200.0,
+        help=""
+    )
+    parser.add_argument(
+        "--dt",
+        type=float,
+        default=5,
+        help=""
+    )
+    parser.add_argument(
+        "--physic_upsampling",
+        type=float,
+        default=1.0,
+        help=""
+    )
+    parser.add_argument(
+        "--glitch_rate",
+        type=int,
+        default=0.2,
+        help="Only used for glitch_type = poisson",
+    )
+    parser.add_argument(
+        "--glitch_spacing",
+        type=int,
+        default=20000,
+        help="Only used for glitch_type = equal_spacing",
+    )
+    parser.add_argument(
+        "--avg_amp",
+        type=float,
+        default=10**-12,
+        help=""
+    )
+    parser.add_argument(
+        "--std_amp",
+        type=float,
+        default=10**-10,
+        help=""
+    )
+    parser.add_argument(
+        "--beta_scale",
+        type=int,
+        default=50,
+        help=""
+    )
+    parser.add_argument(
+        "--amp_set_min",
+        type=float,
+        default=10**-10,
+        help=""
+    )
+    parser.add_argument(
+        "--amp_set_max",
+        type=float,
+        default=10**-5,
+        help=""
+    )
+    parser.add_argument(
+        "--beta_set_min",
+        type=float,
+        default=0.001,
+        help=""
+    )
+    parser.add_argument(
+        "--beta_set_max",
+        type=float,
+        default=100,
+        help=""
+    )
 
-    parser.add_argument('--glitch-type', type=str, default="Poisson", help="Glitch distribution")
-    parser.add_argument('--glitch-amp-type', type=str, default="Gaussian", help="Glitch distribution")
-    parser.add_argument('--glitch-beta-type', type=str, default="Exponential", help="Glitch distribution")
-    parser.add_argument('--no-noise', type=bool, default=False, help="Whether or not to add noise")
-    parser.add_argument('--no-gaps', type=bool, default=True, help="Whether or not to add gaps")
+    # SEED
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed to ensure deterministic outputs"
+    )
 
-    parser.add_argument('-l', '--log', default="", help="Log file")
+    return parser.parse_args()
 
-    args = parser.parse_args()
-    logger = init_logger(args.log, name='lisaglitch.glitch')
 
-    return args
+def cl_args_to_params(cl_args):
+    """Returns a dictionary of all the needed parameters (and combinations of
+    parameters) from cl_args.
 
-def simulate_glitches(glitch_type, glitch_amp_type, glitch_beta_type, params, useIntegratedShapeletGlitch=False):
+    Arguments:
+    cl_args -- Namespace object with all parameters given in commandline
+    arguments
     """
-    Simulate glitches based off the glitch_type (the type of distribution for injected timing) and the given parameters
-    params should match what's needed for the given glitch_type
+
+    params = {
+        "t0": cl_args.t_min,
+        "t_max": cl_args.t_max,
+        "dt": cl_args.dt,
+        "physic_upsampling": cl_args.physic_upsampling,
+        "size": cl_args.t_max / cl_args.dt,
+        "glitch_type": cl_args.glitch_type,
+        "glitch_rate": cl_args.glitch_rate,
+        "glitch_spacing": cl_args.glitch_spacing,
+        "amp_type": cl_args.amp_type,
+        "avg_amp": cl_args.avg_amp,
+        "std_amp": cl_args.std_amp,
+        "amp_set": [cl_args.amp_set_min, cl_args.amp_set_max],
+        "beta_type": cl_args.beta_type,
+        "beta_set": [cl_args.beta_set_min, cl_args.beta_set_max],
+        "beta_scale": cl_args.beta_scale,
+        "glitch_output_h5": PATH_glitch_data + cl_args.glitch_output_h5,
+        "glitch_output_txt": PATH_glitch_data + cl_args.glitch_output_txt,
+        "seed": cl_args.seed,
+    }
+
+    return params
+
+
+def file_paths_to_params(
+    glitch_cfg_path, pipe_cfg_path, glitch_output_h5, glitch_output_txt
+):
+    """Returns a dictionary of all the needed parameters (and combinations of
+    parameters) from glitch_cfg and pipe_cfg files.
+
+    Arguments:
+      glitch_cfg_path -- path to glitch_cfg file
+      pipe_cfg_path -- path to pipe_cfg file
+      glitch_output_h5 -- path to final glitch file in as .h5
+      glitch_output_txt -- path to final glitch file in as .txt
     """
 
-    # List of the injection points to sample from
-    inj_points = ['tm_12']#, 'tm_23', 'tm_31', 'tm_13', 'tm_32', 'tm_21']
-    # inj_points = ['tm_12', 'tm_23', 'tm_31', 'tm_13', 'tm_32', 'tm_21']
+    glitch_cfg = ymlio.load_config(glitch_cfg_path)
+    pipe_cfg = ymlio.load_config(pipe_cfg_path)
+    t0 = 10368000
 
-    # no_noise, no_gaps = params['no_noise'], params['no_gaps']  # TODO add this feature
-    
-    cfg, pipe_cfg = params['cfg'], params['pipe_cfg']
-    if glitch_amp_type == 'Set' or glitch_amp_type == 'set':
-        amp_set = params['amp_set']
-    else:  # Gaussian
-        avg_amp, amp_std = float(cfg["avg_amp"]), float(cfg["amp_std"])
-
-    if glitch_beta_type == 'Set' or glitch_beta_type == 'set':
-        beta_set_min, beta_set_max = float(cfg['beta_set_min']), float(cfg['beta_set_max'])
-        beta_set = [beta_set_min, beta_set_max]
-    else:  # Exponential
-        beta_scale = float(cfg["beta_scale"])
-
-    if glitch_type == "Poisson" or glitch_type == "poisson":
-        # Initial inputs
-        t0, t_max, dt, size, glitch_rate, output_h5, output_txt = \
-            params['t0'], params['t_max'], params['dt'], params['size'], \
-            params['glitch_rate'], params['glitch_h5_mg_output'], params['glitch_txt_mg_output']
-
-        # Get times array
-        timesarr = glitch_times(glitch_rate, t0, t_max, glitch_type='Poisson')
-        timesarr = timesarr[timesarr < size * dt]
-        number_samples = len(timesarr)
-
-    elif glitch_type == 'Equal Spacing' or glitch_type == 'equal spacing':
-        # Initial inputs
-        t0, t_max, dt, size, glitch_spacing, output_h5, output_txt = \
-            params['t0'], params['t_max'], params['dt'], params['size'], \
-                params['glitch_spacing'], params['glitch_h5_mg_output'], params['glitch_txt_mg_output']
-
-        timesarr = glitch_times(t0=int(t0), t_max=int(t_max), glitch_type=glitch_type, equal_space=glitch_spacing)
-        timesarr = timesarr[timesarr < size * dt]
-        number_samples = len(timesarr)
-
+    if "t_inj" in glitch_cfg:
+        params = {
+            "t0": t0,
+            "size": pipe_cfg["duration"].to("s").value
+            / pipe_cfg["dt"].to("s").value,
+            "dt": pipe_cfg["dt"].to("s").value
+            / pipe_cfg["physic_upsampling"],
+            "physic_upsampling": pipe_cfg["physic_upsampling"],
+            "t_inj": glitch_cfg["t_inj"],
+            "beta": glitch_cfg["beta"],
+            "level": glitch_cfg["level"],
+            "glitch_output_h5": PATH_glitch_data + glitch_output_h5,
+            "glitch_output_txt": PATH_glitch_data + glitch_output_txt,
+        }
     else:
-        sys.exit(f"Not an available distribution {glitch_type}")
+        params = {
+            "t0": t0,
+            "t_max": t0 + pipe_cfg["duration"].to("s").value,
+            "dt": pipe_cfg["dt"].to("s").value
+            / pipe_cfg["physic_upsampling"],
+            "physic_upsampling": pipe_cfg["physic_upsampling"],
+            "size": pipe_cfg["duration"].to("s").value
+            / pipe_cfg["dt"].to("s").value,
+            "glitch_type": glitch_cfg["glitch_type"],
+            "glitch_rate": glitch_cfg["glitch_rate"],
+            "glitch_spacing": glitch_cfg["glitch_spacing"],
+            "amp_type": glitch_cfg["amp_type"],
+            "avg_amp": glitch_cfg["avg_amp"],
+            "std_amp": glitch_cfg["std_amp"],
+            "amp_set": [glitch_cfg["amp_set_min"], glitch_cfg["amp_set_max"]],
+            "beta_type": glitch_cfg["beta_type"],
+            "beta_set": [glitch_cfg["beta_set_min"], glitch_cfg["beta_set_max"]],
+            "beta_scale": glitch_cfg["beta_scale"],
+            "glitch_output_h5": PATH_glitch_data + glitch_output_h5,
+            "glitch_output_txt": PATH_glitch_data + glitch_output_txt,
+        }
 
-    # Get Amplitudes and Betas
-    if glitch_amp_type == 'Set' or glitch_amp_type == 'set':
-        amp = amplitude_dist(n_samples=number_samples, type_dist='Set', amp_set=amp_set)
-    else:  # Gaussian
-        amp = amplitude_dist(avg_amp=float(avg_amp), std_amp=float(amp_std),
-                             n_samples=number_samples, type_dist='Gaussian')
+    return params
 
-    if glitch_beta_type == 'Set' or glitch_beta_type == 'set':
-        beta = betas_dist(n_samples=number_samples, beta_set=beta_set, type_dist=glitch_beta_type)
-    else:  # Exponential
-        beta = betas_dist(scale=float(beta_scale), n_samples=number_samples, type_dist='Exponential')
 
-    # Produce glitches
-    glitch_list = []
-    print(amp)
-    # amp = np.sqrt(np.absolute(amp))
+def simulate_glitches(params):
+    """Simulate glitches given dictionary of parameters and write glitches to
+    file.
 
-    for j in range(number_samples):
-        print('-- Sample --', j, 'of ', number_samples)
-        if (useIntegratedShapeletGlitch):
-            g = lisaglitch.IntegratedShapeletGlitch(
-                inj_point=np.random.choice(inj_points),
-                t0=t0, 
-                size=size, 
-                dt=dt, 
-                t_inj=timesarr[j],
-                beta=beta[j], 
-                level=amp[j])
-        else:
-            g = lisaglitch.OneSidedDoubleExpGlitch(
-                inj_point=np.random.choice(inj_points),
-                t0=t0, 
-                size=size, 
-                dt=dt,
-                t_inj=timesarr[j],
-                t_rise=params["t_rise"],
-                t_fall=params["t_fall"],
-                level=amp[j]
+    Arguments:
+    params -- dictionary of parameters describing glitches to simulate
+    """
+    np.random.seed(params["seed"])
+
+    inj_points = ["tm_12"]#, "tm_23", "tm_31", "tm_13", "tm_32", "tm_21"]
+
+    if "t_inj" in params:
+        for i in range(len(params["t_inj"])):
+            params["t_inj"][i] += params["t0"]
+            
+        glitch_times = params["t_inj"]
+        beta = params["beta"]
+        amp = params["level"]
+    else:
+        glitch_type = params["glitch_type"]
+        glitch_amp_type = params["amp_type"]
+        glitch_beta_type = params["beta_type"] 
+
+        # SET GLITCH TIMES
+        if glitch_type.lower() == "poisson":
+            glitch_times = distributions.glitch_times_poisson(
+                glitch_rate=params["glitch_rate"],
+                t0=params["t0"],
+                t_max=params["t_max"],
+                seed=params["seed"],
             )
-        
-        # lisaglitch.IntegratedShapeletGlitch(level=1, beta=1, **kwargs)
-        
-        glitch_list.append(g)
-        g.write(path=output_h5)
-        if j % 100 == 0:
-            print(f"wrote {j} over {number_samples}")
-        print('-- Done Sample --', j, 'of ', number_samples)
+        elif glitch_type.lower() == "equal spacing":
+            glitch_times = distributions.glitch_times_equal_spacing(
+                equal_space=params["glitch_spacing"],
+                t0=params["t0"],
+                t_max=params["t_max"],
+            )
+        else:
+            sys.exit(f"Not an available glitch_type {glitch_type}")
 
-    # Make Glitch File
-    print('Making Glitch File')
-    header = 'generator  ' + 'size  ' + 'dt  ' + 'physics_upsampling  ' + 't0  ' + 't_inj  ' + \
-             'inj_point  ' + 'beta  ' + 'level  '
+        # SET BETA
+        if glitch_beta_type.lower() == "set":
+            beta = distributions.betas_dist_set(
+                n_samples=len(glitch_times),
+                beta_set=params["beta_set"],
+            )
+        elif glitch_beta_type.lower() == "exponential":
+            beta = distributions.betas_dist_exponential(
+                n_samples=len(glitch_times),
+                scale=params["beta_scale"],
+                seed=params["seed"],
+            )
+        else:
+            sys.exit(f"Not an available glitch_beta_type {glitch_beta_type}")
+
+        # SET AMPLITUDE
+        if glitch_amp_type.lower() == "set":
+            amp = distributions.amplitude_dist_set(
+                n_samples=len(glitch_times),
+                amp_set=params["amp_set"],
+                seed=params["seed"],
+            )
+        elif glitch_amp_type.lower() == "gaussian":
+            amp = distributions.amplitude_dist_gaussian(
+                n_samples=len(glitch_times),
+                avg_amp=params["avg_amp"],
+                std_amp=params["std_amp"],
+                seed=params["seed"],
+            )
+        else:
+            sys.exit(f"Not an available glitch_amp_type {glitch_amp_type}")
+
+    # PRODUCE GLITCHES
+    if os.path.exists(params["glitch_output_h5"]):
+        os.remove(params["glitch_output_h5"])
+
+    glitch_list = []
+    for i in range(len(glitch_times)):
+        g = lisaglitch.IntegratedShapeletGlitch(
+            inj_point=np.random.choice(inj_points),
+            t0=params["t0"],
+            size=params["size"],
+            dt=params["dt"],
+            t_inj=glitch_times[i],
+            beta=beta[i],
+            level=amp[i],
+        )
+        glitch_list.append(g)
+        g.write(path=params["glitch_output_h5"], mode="a")
+
+    # FORMAT/MAKE GLITCH FILE
+    header = (
+        "generator  "
+        + "size  "
+        + "dt  "
+        + "physics_upsampling  "
+        + "t0  "
+        + "t_inj  "
+        + "inj_point  "
+        + "beta  "
+        + "level  "
+    )
+
+    output_txt = params["glitch_output_txt"]
 
     if os.path.exists(output_txt):
         os.remove(output_txt)
-        print(f"The file {output_txt} already exists, deleteing the file...")
-    else:
-        print(f"The file {output_txt} does not exist, creating the file....")
+        print(f"The file {output_txt} has been deleted.")
 
-    with open(f'{output_txt}', 'w') as f:
+    with open(f"{output_txt}", "w") as f:
         f.write(header + "\n")
-        f.close()
 
-    with open(f'{output_txt}', 'a') as f:
+    with open(f"{output_txt}", "a") as f:
         for g in glitch_list:
-            if (useIntegratedShapeletGlitch):
-                f.write(str(g.generator) + "  " + str(g.size) + "  " + str(g.dt) + "  " + str(params['physic_upsampling'])
-                    + "  " + str(g.t0) + "  " + str(g.t_inj) + "  " + str(g.inj_point) + "  " +
-                    str(g.beta) + 
-                    "  " + str(g.level) + "  " + "\n")
-            else:
-                f.write(str(g.generator) + "  " + str(g.size) + "  " + str(g.dt) + "  " + str(params['physic_upsampling'])
-                    + "  " + str(g.t0) + "  " + str(g.t_inj) + "  " + str(g.inj_point) + "  " +
-                    "yo" + 
-                    "  " + str(g.level) + "  " + "\n")  
+            f.write(
+                str(g.generator) + "  "
+                + str(g.size) + "  "
+                + str(g.dt) + "  "
+                + str(params["physic_upsampling"]) + "  "
+                + str(g.t0) + "  "
+                + str(g.t_inj) + "  "
+                + str(g.inj_point) + "  "
+                + str(g.beta) + "  "
+                + str(g.level) + "\n"
+            )
 
 
-def main(args):
+def make_glitch(args):
+    if args is not None:
+        params = file_paths_to_params(
+            PATH_glitch_config + args.glitch_cfg_input,
+            PATH_pipeline_config + args.pipe_cfg_input,
+            args.glitch_output_h5,
+            args.glitch_output_txt,
+        )
+        params["seed"] = args.seed
+    else:
+        cl_args = init_cl()
+        if cl_args.glitch_cfg_input is not None \
+                and cl_args.pipe_cfg_input is not None:
+            params = file_paths_to_params(
+                PATH_glitch_config + cl_args.glitch_cfg_input,
+                PATH_pipeline_config + cl_args.pipe_cfg_input,
+                cl_args.glitch_output_h5,
+                cl_args.glitch_output_txt,
+            )
+            params["seed"] = cl_args.seed
+        else:
+            params = cl_args_to_params(cl_args)
 
-    print('-- INTO make_glitch main() --')
-    cfg = ymlio.load_config(PATH_test + args.glitch_config_input)  # source config file
-    pipe_cfg = ymlio.load_config(PATH_test + args.config_input)  # pipeline config file
-
-    glitch_type = cfg["glitch_type"]
-    glitch_amp_type, glitch_beta_type = cfg["amp_type"], cfg["beta_type"]
-
-    params_dict = {'t0': cfg["t_min"].to("s").value, 't_max': cfg["t_max"].to("s").value,
-                    'dt': pipe_cfg["dt_instrument"].to('s').value / pipe_cfg["physic_upsampling"],
-                    'physic_upsampling': pipe_cfg["physic_upsampling"],
-                    'size': cfg["t_max"].to("s").value / pipe_cfg["dt_instrument"].to('s').value,
-                    'glitch_type': cfg["glitch_type"],
-                    'glitch_spacing': cfg["glitch_spacing"],
-                    'glitch_h5_mg_output': PATH_io + args.glitch_h5_mg_output,
-                    'glitch_txt_mg_output': PATH_io + args.glitch_txt_mg_output,
-                    'amp_set': [float(cfg["amp_set_min"]), float(cfg["amp_set_max"])],
-                    'cfg': cfg, 'pipe_cfg': pipe_cfg,
-                    "t_fall": cfg["t_fall"],
-                    "t_rise": cfg["t_rise"]}
-
-    if glitch_type == "Poisson" or glitch_type == "poisson":
-        params_dict['glitch_rate'] = cfg["glitch_rate"]
-    elif glitch_type == 'Equal Spacing' or glitch_type == 'equal spacing':
-        params_dict['glitch_spacing'] = cfg["glitch_spacing"]
-
-    simulate_glitches(glitch_type, glitch_amp_type, glitch_beta_type, params_dict)
-
-    return args.glitch_h5_mg_output, args.glitch_txt_mg_output
+    simulate_glitches(params)
 
 
 """Uncomment to run make_glitch alone"""
-if __name__ == "__main__":
-    args = init_cl()
-    main(args)
+# if __name__ == "__main__":
+#     make_glitch(args=None)
 
 
-
+# keep going through loop doing glitch_i until config[glitch_i] doesn't exist
+# each glitch needs t_inj, beta, level

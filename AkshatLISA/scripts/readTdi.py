@@ -12,7 +12,7 @@ def readTdi(tdi_file_path):
 
 def getTdiPath(tdi_fileName):
     bethLISA_directory = os.path.join(os.getcwd(), "..", "..", "bethLISA")
-    tdi_path = os.path.join(bethLISA_directory, 'lisa_glitch_simulation',
-                        'tdi_outputs', tdi_fileName)
+    tdi_path = os.path.join(bethLISA_directory, 'dist',
+                        'tdi_data', tdi_fileName)
     
     return tdi_path
