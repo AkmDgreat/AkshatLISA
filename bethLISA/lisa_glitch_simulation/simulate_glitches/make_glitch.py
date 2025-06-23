@@ -52,6 +52,12 @@ def init_cl():
 
     # GLITCH ARGUMENTS
     parser.add_argument(
+        "--glitch_shape",
+        type=str,
+        default="OneSidedDoubleExpGlitch",
+        help=""
+    )
+    parser.add_argument(
         "--glitch_type",
         type=str,
         default="Poisson",
@@ -207,45 +213,42 @@ def file_paths_to_params(
 
     glitch_cfg = ymlio.load_config(glitch_cfg_path)
     pipe_cfg = ymlio.load_config(pipe_cfg_path)
-    t0 = 10368000
+    t0 = 0 # t0 = 10368000
+
+    common_params = {
+        "t0": t0,
+        "dt": pipe_cfg["dt"].to("s").value / pipe_cfg["physic_upsampling"],
+        "physic_upsampling": pipe_cfg["physic_upsampling"],
+        "size": pipe_cfg["duration"].to("s").value / pipe_cfg["dt"].to("s").value,
+        "glitch_output_h5": PATH_glitch_data + glitch_output_h5,
+        "glitch_output_txt": PATH_glitch_data + glitch_output_txt,
+        "glitch_shape": glitch_cfg["glitch_shape"],
+        "t_rise": 5,
+        "t_fall": 10
+    }
 
     if "t_inj" in glitch_cfg:
-        params = {
-            "t0": t0,
-            "size": pipe_cfg["duration"].to("s").value
-            / pipe_cfg["dt"].to("s").value,
-            "dt": pipe_cfg["dt"].to("s").value
-            / pipe_cfg["physic_upsampling"],
-            "physic_upsampling": pipe_cfg["physic_upsampling"],
+        specific_params = {
             "t_inj": glitch_cfg["t_inj"],
             "beta": glitch_cfg["beta"],
             "level": glitch_cfg["level"],
-            "glitch_output_h5": PATH_glitch_data + glitch_output_h5,
-            "glitch_output_txt": PATH_glitch_data + glitch_output_txt,
         }
     else:
-        params = {
-            "t0": t0,
+        specific_params = {
             "t_max": t0 + pipe_cfg["duration"].to("s").value,
-            "dt": pipe_cfg["dt"].to("s").value
-            / pipe_cfg["physic_upsampling"],
-            "physic_upsampling": pipe_cfg["physic_upsampling"],
-            "size": pipe_cfg["duration"].to("s").value
-            / pipe_cfg["dt"].to("s").value,
             "glitch_type": glitch_cfg["glitch_type"],
             "glitch_rate": glitch_cfg["glitch_rate"],
             "glitch_spacing": glitch_cfg["glitch_spacing"],
             "amp_type": glitch_cfg["amp_type"],
             "avg_amp": glitch_cfg["avg_amp"],
-            "std_amp": glitch_cfg["std_amp"],
+            "amp_std": glitch_cfg["amp_std"],
             "amp_set": [glitch_cfg["amp_set_min"], glitch_cfg["amp_set_max"]],
             "beta_type": glitch_cfg["beta_type"],
             "beta_set": [glitch_cfg["beta_set_min"], glitch_cfg["beta_set_max"]],
             "beta_scale": glitch_cfg["beta_scale"],
-            "glitch_output_h5": PATH_glitch_data + glitch_output_h5,
-            "glitch_output_txt": PATH_glitch_data + glitch_output_txt,
         }
 
+    params = {**common_params, **specific_params}
     return params
 
 
@@ -259,6 +262,7 @@ def simulate_glitches(params):
     np.random.seed(params["seed"])
 
     inj_points = ["tm_12"]#, "tm_23", "tm_31", "tm_13", "tm_32", "tm_21"]
+    glitch_shape = params["glitch_shape"] # one of IntegratedShapeletGlitch or OneSidedDoubleExpGlitch
 
     if "t_inj" in params:
         for i in range(len(params["t_inj"])):
@@ -315,7 +319,7 @@ def simulate_glitches(params):
             amp = distributions.amplitude_dist_gaussian(
                 n_samples=len(glitch_times),
                 avg_amp=params["avg_amp"],
-                std_amp=params["std_amp"],
+                std_amp=params["amp_std"],
                 seed=params["seed"],
             )
         else:
@@ -326,31 +330,52 @@ def simulate_glitches(params):
         os.remove(params["glitch_output_h5"])
 
     glitch_list = []
-    for i in range(len(glitch_times)):
-        g = lisaglitch.IntegratedShapeletGlitch(
-            inj_point=np.random.choice(inj_points),
-            t0=params["t0"],
-            size=params["size"],
-            dt=params["dt"],
-            t_inj=glitch_times[i],
-            beta=beta[i],
-            level=amp[i],
-        )
+    
+    for t_inj, b, lvl in zip(glitch_times, beta, amp):
+        common_kwargs = {
+            "inj_point": np.random.choice(inj_points),
+            "t0":        params["t0"],
+            "size":      params["size"],
+            "dt":        params["dt"],
+            "t_inj":     t_inj,
+            "level":     lvl,
+        }
+        if glitch_shape.lower() == "integratedshapeletglitch":
+            g = lisaglitch.IntegratedShapeletGlitch(beta=b, **common_kwargs)
+        else:
+            print("using exponential glitch")
+            g = lisaglitch.OneSidedDoubleExpGlitch(
+                t_rise=params["t_rise"],
+                t_fall=params["t_fall"],
+                **common_kwargs
+            )
         glitch_list.append(g)
         g.write(path=params["glitch_output_h5"], mode="a")
 
     # FORMAT/MAKE GLITCH FILE
-    header = (
-        "generator  "
-        + "size  "
-        + "dt  "
-        + "physics_upsampling  "
-        + "t0  "
-        + "t_inj  "
-        + "inj_point  "
-        + "beta  "
-        + "level  "
-    )
+    if glitch_shape.lower() == "integratedshapeletglitch":
+        header = (
+            "generator  "
+            + "size  "
+            + "dt  "
+            + "physics_upsampling  "
+            + "t0  "
+            + "t_inj  "
+            + "inj_point  "
+            + "beta  "
+            + "level  "
+        )
+    else: 
+        header = (
+            "generator  "
+            + "size  "
+            + "dt  "
+            + "physics_upsampling  "
+            + "t0  "
+            + "t_inj  "
+            + "inj_point  "
+            + "level  "
+        )
 
     output_txt = params["glitch_output_txt"]
 
@@ -363,17 +388,29 @@ def simulate_glitches(params):
 
     with open(f"{output_txt}", "a") as f:
         for g in glitch_list:
-            f.write(
-                str(g.generator) + "  "
-                + str(g.size) + "  "
-                + str(g.dt) + "  "
-                + str(params["physic_upsampling"]) + "  "
-                + str(g.t0) + "  "
-                + str(g.t_inj) + "  "
-                + str(g.inj_point) + "  "
-                + str(g.beta) + "  "
-                + str(g.level) + "\n"
-            )
+            if glitch_shape.lower() == "integratedshapeletglitch":
+                f.write(
+                    str(g.generator) + "  "
+                    + str(g.size) + "  "
+                    + str(g.dt) + "  "
+                    + str(params["physic_upsampling"]) + "  "
+                    + str(g.t0) + "  "
+                    + str(g.t_inj) + "  "
+                    + str(g.inj_point) + "  "
+                    + str(g.beta) + "  "
+                    + str(g.level) + "\n"
+                )
+            else:
+                f.write(
+                    str(g.generator) + "  "
+                    + str(g.size) + "  "
+                    + str(g.dt) + "  "
+                    + str(params["physic_upsampling"]) + "  "
+                    + str(g.t0) + "  "
+                    + str(g.t_inj) + "  "
+                    + str(g.inj_point) + "  "
+                    + str(g.level) + "\n"
+                )
 
 
 def make_glitch(args):

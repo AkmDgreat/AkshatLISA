@@ -71,7 +71,7 @@ def init_cl():
     parser.add_argument(
         "--disable_noise",
         type=bool,
-        default=False,
+        default=True,
         help="Simulate LISA instruments without noise?"
     )
 
