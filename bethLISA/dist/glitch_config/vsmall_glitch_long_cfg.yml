@@ -12,3 +12,6 @@ amp_set_min: 8e-12
 amp_set_max: 1e-12
 beta_type: 'Exponential'
 beta_scale: 50
+glitch_shape: "OneSidedDoubleExpGlitch"
+beta_set_min: 49
+beta_set_max: 51

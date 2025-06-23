@@ -1,3 +1,6 @@
 t_inj: [43200]
-beta: [0.005719067932154296]
-level: [-4.994718282477366e-06]
+beta: [1]
+level: [2e-40]
+glitch_shape: "IntegratedShapeletGlitch"
+t_rise: 5
+t_fall: 5
