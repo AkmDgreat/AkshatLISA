@@ -79,20 +79,23 @@ def order_stat_pdf(v, N, k, f, F):
     v = np.asarray(v)
 
     if isinstance(k, float):
-        coeff = gamma(N) // (gamma(k - 1) * gamma(N - k))
+        # coeff = gamma(N) / (gamma(k - 1) * gamma(N - k))
+        coeff = gamma(N) / (gamma(k - 1) * gamma(k-1))
+        # ealier: I was using //
     else:
-        coeff = factorial(N) // (factorial(k - 1) * factorial(N - k))
+        coeff = factorial(N) / (factorial(k - 1) * factorial(N - k))
 
-    return coeff * (F(v) ** (k - 1)) * ((1 - F(v)) ** (N - k)) * f(v)
+    # return coeff * (F(v) ** (k - 1)) * ((1 - F(v)) ** (N - k)) * f(v)
+    return coeff * (F(v) ** (k - 1)) * ((1 - F(v)) ** (k - 1)) * f(v)
 
 def median_pdf(v, N, f, F, method='lower'):
     """PDF of the sample median for any N, using the chosen method."""
     if N % 2:               # odd sample size
-        k = (N + 1) // 2
+        k = (N + 1) / 2
         return order_stat_pdf(v, N, k, f, F)
     else:                   # even
         if method == 'scott':
-            n = N / 2.0
+            n = (N+1) / 2
             print(f"n = {n}")
             return order_stat_pdf(v, N, n, f, F)
         n = N // 2
@@ -105,6 +108,39 @@ def median_pdf(v, N, f, F, method='lower'):
             raise RuntimeError("Should have been caught in median_exp_pdf")
         else:
             raise ValueError("method must be 'lower', 'upper', or 'average'")
+
+def _pdf_average_median_exp(v, N, scale):
+    """
+    PDF of the average of X_(n) and X_(n+1) for an Exp(scale) parent,
+    where N = 2n is even.
+    """
+    print("inside new function")
+    assert N % 2 == 0
+    n        = N // 2
+    coeff    = factorial(N) / (factorial(n - 1) ** 2) * 2.0
+    v        = np.asarray(v, dtype=float)
+    pdf_vals = np.zeros_like(v)
+
+    inv_scale = 1.0 / scale
+
+    for i, m in enumerate(v):
+        if m <= 0.0:                  # support is m > 0
+            continue
+
+        def integrand(u):
+            mp = m + u                # m+u ≥ m ≥ 0
+            mm = m - u                # 0 ≤ mm ≤ m
+            # Exploit exponential formulas:  F(x)=1–e^{–x/λ}, 1–F(x)=e^{–x/λ}, f(x)=e^{–x/λ}/λ
+            exp_mp = np.exp(-mp * inv_scale)
+            exp_mm = np.exp(-mm * inv_scale)
+            return ((1.0 - exp_mp) ** (n - 1)) * (exp_mm ** (n - 1)) * \
+                   (exp_mp * exp_mm) * (inv_scale ** 2)
+
+        # integral only up to m (beyond that mm<0 ⇒ integrand ≡ 0)
+        res, _ = quad(integrand, 0.0, m, epsabs=1e-9, epsrel=1e-9)
+        pdf_vals[i] = coeff * res
+
+    return pdf_vals
 
 def avg_median_exp_pdf(v, N, scale=1.0, tol=1e-9):
     """
@@ -160,9 +196,42 @@ def median_exp_pdf(v, N, scale=1.0, method='lower'):
     F = lambda x: 1 - np.exp(-x / scale)
 
     if method == 'average' and (N % 2 == 0):
-        return avg_median_exp_pdf(v, N, scale)
+        # return avg_median_exp_pdf(v, N, scale)
+        return _pdf_average_median_exp(v, N, scale) # new code
     else:
         return median_pdf(v, N, f, F, method)
+
+def y_n(x, n, s):
+    f = np.exp(-x/s) / s  # PDF
+    F = 1 - np.exp(-x/s)  # CDF
+    return (F**n) * (1-F)**n * f      
+
+def ratio_numerical(n, s=1.0):
+    """
+    n : int or array-like of ints  (n ≥ 1)
+    s : scale (default 1)
+    returns : float or ndarray   —  (∫ x y_n / ∫ y_n)
+    """
+    n_arr = np.asarray(n, dtype=float)                # works for scalar or array
+    out   = np.empty_like(n_arr, dtype=float)
+
+    # iterate over every element (ndim-safe)
+    for idx, n_scalar in np.ndenumerate(n_arr):
+        num, _ = quad(lambda x: x * y_n(x, n_scalar, s), 0, np.inf)
+        den, _ = quad(lambda x:     y_n(x, n_scalar, s), 0, np.inf)
+        out[idx] = num / den
+
+    # return a scalar if a scalar went in
+    return out.item() if np.isscalar(n) else out
+
+def ratio(n, s=1.0):
+    """
+    n : int or 1-D array of ints (n ≥ 1)
+    s : positive scale (default 1)
+    returns s · [ψ(2n+2) - ψ(n+1)]
+    """
+    n = np.asarray(n, dtype=float)
+    return s * (digamma(2*n + 2) - digamma(n + 1))
 
 # This works for both histogram and any function
 def confidence_interval(data, confidence=0.90):
@@ -247,34 +316,3 @@ def psd_ci(psd_hat, W, c=0.10):
     S_lower = 2*W * psd_hat / chi2_lower     # < psd_hat
     S_upper = 2*W * psd_hat / chi2_upper     # > psd_hat
     return S_lower, S_upper
-
-def y_n(x, n, s):
-    f = np.exp(-x/s)
-    return t**(n+1) * (1 - t)**n          # same as (e^{-x/s})^n*(1-e^{-x/s})^n*e^{-x/s}
-
-def ratio_numerical(n, s=1.0):
-    """
-    n : int or array-like of ints  (n ≥ 1)
-    s : scale (default 1)
-    returns : float or ndarray   —  (∫ x y_n / ∫ y_n)
-    """
-    n_arr = np.asarray(n, dtype=float)                # works for scalar or array
-    out   = np.empty_like(n_arr, dtype=float)
-
-    # iterate over every element (ndim-safe)
-    for idx, n_scalar in np.ndenumerate(n_arr):
-        num, _ = quad(lambda x: x * y_n(x, n_scalar, s), 0, np.inf)
-        den, _ = quad(lambda x:     y_n(x, n_scalar, s), 0, np.inf)
-        out[idx] = num / den
-
-    # return a scalar if a scalar went in
-    return out.item() if np.isscalar(n) else out
-
-def ratio(n, s=1.0):
-    """
-    n : int or 1-D array of ints (n ≥ 1)
-    s : positive scale (default 1)
-    returns s · [ψ(2n+2) - ψ(n+1)]
-    """
-    n = np.asarray(n, dtype=float)
-    return s * (digamma(2*n + 2) - digamma(n + 1))
