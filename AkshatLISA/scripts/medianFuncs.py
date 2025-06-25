@@ -8,37 +8,6 @@ from scipy.special import digamma, gamma
 from numpy.typing import ArrayLike
 from typing import Tuple
 
-# def median_pdf(v, N, f, F):
-#     """
-#     Density of the sample median for an odd sample size N.
-
-#     Parameters
-#     ----------
-#     v : float or array_like
-#         Point(s) where the pdf is evaluated.
-#     N : int  (must be odd)
-#         Sample size used to form the median.
-#     f : callable
-#         Population probability-density function  f(x).
-#     F : callable
-#         Population cumulative-distribution function  F(x).
-
-#     Returns
-#     -------
-#     pdf : float or ndarray
-#         Value(s) of the density at v.
-#     """
-#     if N % 2 == 0:
-#         warnings.warn(f"N={N} is even, not recommended", UserWarning)
-#         n = N / 2.0
-#     else:
-#         n = (N - 1) // 2                 # half-size parameter
-    
-#     print(f"n: {n}")
-#     v = np.asarray(v)
-#     coeff = factorial(N) / (factorial(n) * factorial(n))   # (N)! / (n! n!)
-#     return coeff * (F(v)**n) * ((1 - F(v))**n) * f(v)
-
 def harmonic_factor(N, method='lower'):
     if N % 2:                       # odd: only one definition
         n = (N - 1) // 2
@@ -62,145 +31,24 @@ def harmonic_factor(N, method='lower'):
     else:
         raise ValueError("method must be 'lower', 'upper', or 'average'")
 
-def order_stat_pdf(v, N, k, f, F):
-    """
-    PDF of the k-th order statistic X_(k) from a sample of size N.
+def median_pdf(x, N, s):
+    """PDF of the sample median for any N"""
+    x = np.asarray(x)
+    f = np.exp(-x/s) / s  # PDF
+    F = 1 - np.exp(-x/s)  # CDF
+    n = (N-1) / 2 
 
-    Parameters
-    ----------
-    v : float or array_like
-    N : int             Sample size (N >= 1) (or float)
-    k : int             Order (1 <= k <= N)
-    f : callable        Population pdf  f(x)
-    F : callable        Population cdf  F(x)
-    """
-    if not (1 <= k <= N):
-        raise ValueError("k must be between 1 and N inclusive")
-    v = np.asarray(v)
-
-    if isinstance(k, float):
-        # coeff = gamma(N) / (gamma(k - 1) * gamma(N - k))
-        coeff = gamma(N) / (gamma(k - 1) * gamma(k-1))
-        # ealier: I was using //
+    ## gamma(0) is not defined, but 0! = 1 (by definition)
+    if n == 0:
+        coeff = gamma(N)
     else:
-        coeff = factorial(N) / (factorial(k - 1) * factorial(N - k))
+        coeff = gamma(N) / (gamma(n) * gamma(n))
+    print(f"N={N}, n={n}")  
 
-    # return coeff * (F(v) ** (k - 1)) * ((1 - F(v)) ** (N - k)) * f(v)
-    return coeff * (F(v) ** (k - 1)) * ((1 - F(v)) ** (k - 1)) * f(v)
+    return coeff * (F ** n) * ((1-F) ** n) * f                    
 
-def median_pdf(v, N, f, F, method='lower'):
-    """PDF of the sample median for any N, using the chosen method."""
-    if N % 2:               # odd sample size
-        k = (N + 1) / 2
-        return order_stat_pdf(v, N, k, f, F)
-    else:                   # even
-        if method == 'scott':
-            n = (N+1) / 2
-            print(f"n = {n}")
-            return order_stat_pdf(v, N, n, f, F)
-        n = N // 2
-        if method == 'lower':
-            return order_stat_pdf(v, N, n, f, F)
-        elif method == 'upper':
-            return order_stat_pdf(v, N, n + 1, f, F)
-        elif method == 'average':
-            # average handled by avg_median_exp_pdf, should never get here
-            raise RuntimeError("Should have been caught in median_exp_pdf")
-        else:
-            raise ValueError("method must be 'lower', 'upper', or 'average'")
-
-def _pdf_average_median_exp(v, N, scale):
-    """
-    PDF of the average of X_(n) and X_(n+1) for an Exp(scale) parent,
-    where N = 2n is even.
-    """
-    print("inside new function")
-    assert N % 2 == 0
-    n        = N // 2
-    coeff    = factorial(N) / (factorial(n - 1) ** 2) * 2.0
-    v        = np.asarray(v, dtype=float)
-    pdf_vals = np.zeros_like(v)
-
-    inv_scale = 1.0 / scale
-
-    for i, m in enumerate(v):
-        if m <= 0.0:                  # support is m > 0
-            continue
-
-        def integrand(u):
-            mp = m + u                # m+u ≥ m ≥ 0
-            mm = m - u                # 0 ≤ mm ≤ m
-            # Exploit exponential formulas:  F(x)=1–e^{–x/λ}, 1–F(x)=e^{–x/λ}, f(x)=e^{–x/λ}/λ
-            exp_mp = np.exp(-mp * inv_scale)
-            exp_mm = np.exp(-mm * inv_scale)
-            return ((1.0 - exp_mp) ** (n - 1)) * (exp_mm ** (n - 1)) * \
-                   (exp_mp * exp_mm) * (inv_scale ** 2)
-
-        # integral only up to m (beyond that mm<0 ⇒ integrand ≡ 0)
-        res, _ = quad(integrand, 0.0, m, epsabs=1e-9, epsrel=1e-9)
-        pdf_vals[i] = coeff * res
-
-    return pdf_vals
-
-def avg_median_exp_pdf(v, N, scale=1.0, tol=1e-9):
-    """
-    Numerically stable pdf of M = (X_(m)+X_(m+1))/2,  N = 2m,  X~Exp(scale).
-    """
-    if N % 2:
-        raise ValueError("N must be even for the average-median definition")
-
-    n  = N // 2                # m in the notation above
-    v  = np.atleast_1d(v).astype(float)
-    pdf = np.zeros_like(v)
-
-    coeff = factorial(N) / (factorial(n - 1) ** 2) * 2.0
-    lam   = scale
-
-    for i, m in enumerate(v):
-        if m <= 0.0:
-            pdf[i] = 0.0
-            continue
-
-        # integrate u from 0 .. m  (beyond m integrand=0)
-        def log_integrand(u):
-            mp = m + u
-            mm = m - u
-
-            # log-pdf of Exp(scale)
-            log_f_mp = -mp / lam - np.log(lam)
-            log_f_mm = -mm / lam - np.log(lam)
-
-            # log-cdf and log(1-cdf) (use log1p for accuracy)
-            log_F_mp     = np.log1p(-np.exp(-mp / lam))
-            log_one_F_mm = np.log1p(-np.exp(-mm / lam))
-
-            return ((n - 1) * log_F_mp
-                    + (n - 1) * log_one_F_mm
-                    + log_f_mp + log_f_mm)
-
-        def integrand(u):
-            return np.exp(log_integrand(u))
-
-        pdf[i], _ = quad(integrand, 0.0, m, epsabs=tol)
-
-    return coeff * pdf if pdf.ndim else pdf.item()
-
-def median_exp_pdf(v, N, scale=1.0, method='lower'):
-    """
-    Wrapper that calls:
-      • order_stat_pdf   for lower / upper (and for odd N),
-      • avg_median_exp_pdf for 'average' when N is even.
-    """
-    # parent pdf/cdf
-    f = lambda x: np.exp(-x / scale) / scale
-    F = lambda x: 1 - np.exp(-x / scale)
-
-    if method == 'average' and (N % 2 == 0):
-        # return avg_median_exp_pdf(v, N, scale)
-        return _pdf_average_median_exp(v, N, scale) # new code
-    else:
-        return median_pdf(v, N, f, F, method)
-
+### The following three functions are used to prove the fact that 
+### using Digammma or integration gives same
 def y_n(x, n, s):
     f = np.exp(-x/s) / s  # PDF
     F = 1 - np.exp(-x/s)  # CDF
