@@ -9,7 +9,8 @@ def logpsd(x,
            L1: int | None = None,
            window: str = "hann",
            overlap: float = 0, 
-           scaling: str = "density"):
+           scaling: str = "density",
+           method: str = "mean"):
     """
     Minimum-error, low-correlation *logPSD* estimator.
 
@@ -101,7 +102,8 @@ def logpsd(x,
                        window=window,
                        nperseg=Lk,
                        noverlap=noverlap,
-                       scaling=scaling)
+                       scaling=scaling,
+                       method=method)
         f, Pxx = f[M:], Pxx[M:]                # drop window-affected bins
         idx    = np.abs(f - fk).argmin()       # nearest bin
         P_opt[j] = Pxx[idx]

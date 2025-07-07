@@ -1,0 +1,2 @@
+generator  size  dt  physics_upsampling  t0  t_inj  inj_point  level  
+OneSidedDoubleExpGlitch  17280  5.0  1  0.0  30000.0  tm_12  4e-09

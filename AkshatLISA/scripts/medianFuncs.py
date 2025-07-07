@@ -31,21 +31,62 @@ def harmonic_factor(N, method='lower'):
     else:
         raise ValueError("method must be 'lower', 'upper', or 'average'")
 
+# def median_pdf(x, N, s):
+#     """PDF of the sample median for any N"""
+#     x = np.asarray(x)
+#     f = np.exp(-x/s) / s  # PDF
+#     F = 1 - np.exp(-x/s)  # CDF
+#     n = (N-1) / 2 
+
+#     ## gamma(0) is not defined, but 0! = 1 (by definition)
+#     if n == 0:
+#         coeff = gamma(N)
+#     else:
+#         coeff = gamma(N) / (gamma(n) * gamma(n))
+#     print(f"N={N}, n={n}")  
+
+#     return coeff * (F ** n) * ((1-F) ** n) * f       
+
 def median_pdf(x, N, s):
-    """PDF of the sample median for any N"""
-    x = np.asarray(x)
-    f = np.exp(-x/s) / s  # PDF
-    F = 1 - np.exp(-x/s)  # CDF
-    n = (N-1) / 2 
+    """
+    PDF of the sample median of N i.i.d. Exp(scale = s) variables.
 
-    ## gamma(0) is not defined, but 0! = 1 (by definition)
-    if n == 0:
-        coeff = gamma(N)
-    else:
-        coeff = gamma(N) / (gamma(n) * gamma(n))
-    print(f"N={N}, n={n}")  
+    * Odd  N = 2n+1  → same closed-form you were already using.
+    * Even N = 2k    → uses the integral representation
 
-    return coeff * (F ** n) * ((1-F) ** n) * f                    
+            f(m) ∝ e^{-Nm} ∫_{0}^{e^{m}-1} v^{k-1}/(1+v) dv
+
+      which can be evaluated with a short alternating power-series +
+      logarithm – no special functions required.
+    """
+    x = np.asarray(x, dtype=float)
+    y = x / s                       # work in the unit-rate variable
+
+    # ---------- odd N (unchanged) ----------
+    if N % 2 == 1:
+        n = (N - 1) // 2
+        F = 1 - np.exp(-y)          # CDF  of Exp(1)
+        f = np.exp(-y)              # PDF  of Exp(1)
+        coeff = gamma(N) / (gamma(n + 1) * gamma(n + 1))
+        pdf  = coeff * (F**n) * ((1 - F)**n) * f / s
+        return pdf
+
+    # ---------- even N = 2k ----------
+    k   = N // 2
+    v   = np.exp(y) - 1.0           # upper limit of the inner integral
+
+    # I(k,v) = ∫_0^v t^{k-1}/(1+t) dt
+    #        = (-1)^{k-1} [ ln(1+v) + Σ_{j=1}^{k-1} (-1)^j v^j / j ]
+    S = np.log1p(v)                 # j = 0 term
+    for j in range(1, k):
+        S += (-1)**j * v**j / j
+    I = (-1)**(k - 1) * S           # the integral value
+
+    pdf = np.exp(-N * y) * I / s    # scale back to Exp(scale = s)
+
+    # numerical guard – tiny negatives can appear from round-off
+    pdf = np.where(pdf < 0, 0.0, pdf)
+    return pdf             
 
 ### The following three functions are used to prove the fact that 
 ### using Digammma or integration gives same

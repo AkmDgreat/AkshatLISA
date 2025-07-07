@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.signal import get_window
+from scripts.wosa import wosa
 
 
 def lpsd(
@@ -129,6 +130,7 @@ def lpsd(
     # of averages.  We now round r'' to the nearest bin of the DFT to get our final
     # resolutions r.
     L = np.around(fs / rpp).astype(int)  # segment lengths (19)
+    D_arr   = np.floor((1 - xi) * L).astype(int)
     r = fs / L  # actual resolution (20)
     m = f / r  # Fourier Tranform bin number (7)
 
@@ -180,4 +182,99 @@ def lpsd(
         C = 2.0 / (fs * S2)  # (29)
         Pxx = Pxx * C
 
-    return f, Pxx
+    return f, Pxx, L, D_arr
+
+
+def lpsd_wosa(
+    x,
+    *,
+    fs: float = 1.0,
+    window: str = "hann",
+    fmin: float | None = None,
+    fmax: float | None = None,
+    Jdes: int | None = None,          # ← NEW: desired number of output bins
+    W_des: int = 100,
+    W_min: int = 1,
+    xi: float = 0.5,
+    scaling: str = "density",
+    wosa_kwargs: dict | None = None,
+):
+    """
+    LPSD via WOSA — now with an optional `Jdes` that caps the number of bins.
+    (If `Jdes` is None, the loop runs until f_k exceeds fmax.)
+    """
+    # ---------------------------------------------------------------- helpers
+    def _delta_f(W):
+        return inv_Ndt * (1 + (1 - xi) * (W - 1))
+
+    def _nearest_idx(arr, value):
+        return int(np.abs(arr - value).argmin())
+
+    # ---------------------------------------------------------------- constants
+    N       = len(x)
+    dt      = 1.0 / fs
+    inv_Ndt = 1.0 / (N * dt)
+
+    if fmin is None:
+        fmin = fs / N
+    if fmax is None:
+        fmax = fs / 2.0
+
+    g        = np.log(fmax / fmin)
+    Δf_des   = _delta_f(W_des)
+    Δf_min   = _delta_f(W_min)
+
+    wosa_kwargs = {} if wosa_kwargs is None else dict(wosa_kwargs)
+    f_list, P_list, L_list, D_list = [], [], [], []
+
+    f_k = fmin
+    while f_k <= fmax and (Jdes is None or len(f_list) < Jdes):
+
+        # –– Eq. (2.11) preliminary resolution ––––––––––––––––––
+        Δf_tilde = f_k * (np.exp(g / (W_des - 1)) - 1.0)
+
+        # –– Eq. (2.12) choose actual resolution ––––––––––––––––
+        if Δf_tilde >= Δf_des:
+            Δf_k = Δf_tilde
+        elif Δf_tilde >= Δf_min:
+            Δf_k = np.sqrt(Δf_des * Δf_tilde)
+        else:
+            Δf_k = Δf_min
+
+        # –– Eq. (2.13) segment length & hop ––––––––––––––––––––
+        L_k = int(np.floor(1.0 / (Δf_k * dt)))
+        if L_k < 2:
+            break
+        D_k       = int(np.floor((1.0 - xi) * L_k))
+        noverlap  = L_k - D_k
+
+        # –– Call your existing WOSA ––––––––––––––––––––––––––––
+        f_w, P_w, _, _ = wosa(
+            x,
+            fs=fs,
+            nperseg=L_k,
+            noverlap=noverlap,
+            window=window,
+            scaling=scaling,
+            **wosa_kwargs,
+        )
+
+        # pick the bin closest to f_k
+        idx  = _nearest_idx(f_w, f_k)
+        P_k  = P_w[idx]
+
+        # store
+        f_list.append(f_k)
+        P_list.append(P_k)
+        L_list.append(L_k)
+        D_list.append(D_k)
+
+        # –– Eq. (2.14) next centre-frequency –––––––––––––––––––
+        f_k += 1.0 / (L_k * dt)
+
+    return (
+        np.asarray(f_list),
+        np.asarray(P_list),
+        np.asarray(L_list, dtype=int),
+        np.asarray(D_list, dtype=int),
+    )

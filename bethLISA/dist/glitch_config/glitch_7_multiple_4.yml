@@ -1,0 +1,18 @@
+t_inj: [10000, 20000, 40000, 50000, 60000, 80000]
+beta: [1, 1, 1, 1, 1, 1]
+level: [6e-8, 6e-8, 6e-8, 6e-8, 6e-8, 6e-8]
+glitch_shape: "OneSidedDoubleExpGlitch"
+t_rise: 5
+t_fall: 10
+_command: |
+  args=(                                            
+    --glitch_cfg_input      glitch_7_multiple_4.yml
+    --glitch_output_h5      glitch_7_multiple_4.h5
+    --glitch_output_txt     glitch_7_multiple_4.txt
+    --tdi_output_h5         glitch_7_multiple_4.h5
+    --simulation_output_h5  glitch_7_multiple_4.h5
+    --pipe_cfg_input        pipeline_cfg.yml
+    --orbit_input_h5        orbits.h5
+    --disable_noise   False
+  )
+  python main.py "${args[@]}"

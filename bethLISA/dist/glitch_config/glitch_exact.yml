@@ -1,6 +1,7 @@
-t_inj: [43200]
+t_inj: [30000]
 beta: [1]
-level: [2e-40]
-glitch_shape: "IntegratedShapeletGlitch"
+level: [1e-9]
+glitch_shape: "OneSidedDoubleExpGlitch"
 t_rise: 5
-t_fall: 5
+t_fall: 10
+

@@ -4,6 +4,7 @@ from scipy.signal.windows import tukey
 from pytdi.michelson import X2, Y2, Z2
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
 from lisainstrument import Instrument
+from lisainstrument.containers import ForEachMOSA
 from pytdi import Data
 import argparse
 
@@ -17,7 +18,8 @@ PATH_tdi_data = os.path.join(PATH_bethLISA, "dist/tdi_data/")
 PATH_orbit_data = os.path.join(PATH_bethLISA, "dist/orbit_data/")
 PATH_interferometer_plots = os.path.join(PATH_bethLISA,
                                          "dist/interferometer_plots/")
-
+CENTRAL_FREQ = 2.816E14
+READOUT_NOISE = 6.35e-12
 
 def init_cl():
     """Initialize commandline arguments and return Namespace object with all
@@ -114,13 +116,18 @@ def simulate_lisa(
         physics_upsampling=glitch_inputs["physics_upsampling"],
         aafilter=glitch_inputs["aafilter"],
         glitches=glitch_input_h5_path,    
+        central_freq= CENTRAL_FREQ
     )
 
     # lisa_instrument.disable_all_noises(but="laser")
-    lisa_instrument.disable_dopplers()
+    # lisa_instrument.disable_dopplers()
 
     if disable_noise:
+        print("All noise disabled")
         lisa_instrument.disable_all_noises()
+    else: 
+        # lisa_instrument.oms_isc_carrier_asds = ForEachMOSA(READOUT_NOISE)
+        lisa_instrument.laser_asds = ForEachMOSA(0)
 
     # SIMULATE LISA AND SAVE RESULTS TO FILE
     if os.path.exists(simulation_output_h5_path):
@@ -159,7 +166,7 @@ def compute_and_save_tdi_channels(
         channel = channels[i]
 
         # CALCULATE TDI CHANNEL DATA
-        tdi_data = channel.build(**data.args)(data.measurements)
+        tdi_data = channel.build(**data.args)(data.measurements) / CENTRAL_FREQ
 
         # WINDOW TDI CHANNEL DATA
         window = tukey(tdi_data.size, alpha=0.001)

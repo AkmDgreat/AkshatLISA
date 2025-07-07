@@ -156,8 +156,8 @@ def plotLigoPsd(data,
     plt.show()                         
 
 def plot(data, t, f, psd, labels, title,
-         show_time_series=True,
-         nper=None, fs=None, bigtitle=None, vlines=None, logpsd=False):
+         show_time_series=True, f_lims=None,
+        bigtitle=None, vlines=None, logpsd=False):
     """
     Plot a time-series and one or more PSD estimates side by side,
     or just the PSD if show_time_series=False.
@@ -190,50 +190,38 @@ def plot(data, t, f, psd, labels, title,
         ax0 = axes[0]
         ax0.plot(t, data)
         ax0.set_xlim(t[0], t[-1])
-        ax0.set_xlabel("Time [s]")
+        ax0.set_xlabel(r"$Time \ [s]$")
         ax0.set_ylabel(title)
-        ax0.set_title("Time series")
+        ax0.grid(False)
+        # ax0.set_title(r"$Time \ series$")
 
-    # 2) log–log PSD(s)
+    # 2) PSD(s)
     ax1 = axes[-1]
     for psd_array, label in zip(psds, labels):
         if (logpsd):
-            ax1.plot(f, psd_array, label=label)
-            ax1.set_yscale('log')
+            ax1.loglog(f, psd_array, 'o-', label=label)
+            # ax1.set_yscale('log')
         else:
             ax1.loglog(f, psd_array, label=label)
-
-    # uncomment to remove limits 
-    # if (nper is not None) and (fs is not None):
-    #     ax1.set_xlim(fs/nper, fs/2.0)
+    
+    if f_lims is not None:
+        ax1.set_xlim(f_lims[0], f_lims[1])
     
     if vlines is not None:
         # make whatever the user passed iterable
         for v in np.atleast_1d(vlines):
             ax1.axvline(v, ls=":", lw=1, color="k", alpha=0.6)
 
-    ax1.set_xlabel("Frequency [Hz]")
-    ax1.set_ylabel("PSD (LISA)")
-    # ax1.set_title("WOSA (log–log)")
+    ax1.set_xlabel(r"$Frequency \ [Hz]$")
+    ax1.set_ylabel(r"$PSD \ [V^2/\sqrt{Hz}]$")
     ax1.legend()
 
-    ax0.grid(False)
+    # ax.plot(f_logpsd, psd_logpsd, 'o-', label='log-PSD')   
+
     ax1.grid(False)
 
     fig.tight_layout()
     return fig, axes
-
-# def draw_segments(t, data, nperseg, noverlap):
-#     N = len(data)
-#     plt.figure()
-#     plt.plot(t, data)
-#     step = nperseg - noverlap
-#     starts = np.arange(0, N, step)
-#     for start in starts:
-#         end = start + nperseg
-#         plt.axvline(start, color='C0', linestyle='--')
-#         plt.axvline(min(end, N-1), color='C1', linestyle='--')
-#     plt.show()
 
 def draw_segments(t, data, nperseg, noverlap):
     N = len(data)
@@ -243,6 +231,8 @@ def draw_segments(t, data, nperseg, noverlap):
     plt.figure()
     plt.plot(t, data)
     plt.xlim(t[0], t[-1])
+    plt.xlabel("Time [s]")
+    plt.ylabel("TDI-X")
 
     for start in starts:
         # always draw the start line
@@ -252,6 +242,58 @@ def draw_segments(t, data, nperseg, noverlap):
         if end < N:
             plt.axvline(t[end], color='C0', linestyle='--')
 
+    plt.grid(False)
+    plt.tight_layout()
+    plt.show()
+
+# def draw_segments_lpsd(t, data, L, D):
+#     print(f"L.shape = {L.shape}, D.shape = {D.shape}")
+#     N = len(data)
+    
+#     plt.figure(figsize=(10, 3))
+#     plt.plot(t, data, color='C0', linewidth=0.5)
+#     plt.xlabel("Time [s]")
+#     plt.ylabel("TDI-X")
+    
+#     # for each frequency-bin j, draw its windows
+#     for Lj, Dj in zip(L, D):
+#         starts = np.arange(0, N, Dj)
+#         for s in starts:
+#             if s < N:
+#                 plt.axvline(t[s], color='C1', linestyle='--', alpha=0.2)
+#             e = s + Lj
+#             if e < N:
+#                 plt.axvline(t[e], color='C1', linestyle='-.', alpha=0.2)
+    
+#     plt.xlim(t[0], t[-1])
+#     plt.grid(False)
+#     plt.tight_layout()
+#     plt.show()
+
+def draw_segments_lpsd(t, data, L, D, bin_idx):
+    N = len(data)
+    Lj = L[bin_idx]
+    Dj = D[bin_idx]
+
+    starts = np.arange(0, N, Dj)
+
+    plt.figure(figsize=(10,3))
+    plt.plot(t, data, color='C0', linewidth=0.5)
+    plt.xlabel("Time [s]")
+    plt.ylabel("TDI-X")
+    plt.title(f"LPSD windows at bin {bin_idx}: L={Lj}, D={Dj}")
+
+    for s in starts:
+        # start‐line
+        plt.axvline(t[s], color='C1', linestyle='--', alpha=0.8)
+        # end‐line
+        e = s + Lj
+        if e < N:
+            plt.axvline(t[e], color='C1', linestyle='-.', alpha=0.8)
+
+    plt.xlim(t[0], t[-1])
+    plt.grid(False)
+    plt.tight_layout()
     plt.show()
 
 
@@ -270,60 +312,38 @@ def plot_orig_and_noise_psds(
     Plot the original PSD alongside a vertical marker at `chosen_f_orig`,
     and on the right plot show `n` random noise PSD realizations with
     their vertical marker at `chosen_f_noise`.
-
-    Parameters
-    ----------
-    f_orig : array_like
-        Frequency bins for the original PSD.
-    orig_psd : array_like
-        Original PSD values.
-    chosen_f_orig : float
-        Frequency (Hz) at which to draw a vertical line on the original PSD.
-    f_noise : array_like
-        Frequency bins for the noise PSDs.
-    noise_psds : array_like, shape (n_realizations, len(f_noise))
-        PSD realizations for the noise.
-    chosen_f_noise : float
-        Frequency (Hz) at which to draw a vertical line on the noise PSDs.
-    n : int, optional
-        How many of the noise realizations to plot. Default is 5.
-    alpha : float, optional
-        Line transparency for the noise PSDs. Default is 0.3.
-    bigtitle : str, optional
-        Supertitle for the entire figure.
     """
-    # pick up to n random rows
+    # pick up to n random noise realizations
     n_realizations = noise_psds.shape[0]
     idxs = random.sample(range(n_realizations), min(n, n_realizations))
 
-    fig, axes = plt.subplots(1, 2, figsize=(20, 4))
+    fig, ax = plt.subplots(figsize=(10, 6))
     fig.suptitle(bigtitle, fontsize=16)
 
-    # Left: original PSD
-    ax0 = axes[0]
-    ax0.loglog(f_orig, orig_psd, label="Original PSD")
-    ax0.set_xlim(f_orig[0], f_orig[-1])
-    ax0.set_xlabel("Frequency [Hz]")
-    ax0.set_ylabel("PSD [1/Hz]")
-    ax0.set_title("Original PSD (log-log)")
-    ax0.axvline(chosen_f_orig, color='red', linewidth=2,
-                label=f"Chosen freq: {chosen_f_orig:.5f} Hz")
-    ax0.legend()
-
-    # Right: noise PSDs
-    ax1 = axes[1]
+    # Plot the noise PSDs
     for i in idxs:
-        ax1.loglog(f_noise, noise_psds[i], alpha=alpha, lw=1)
-    # ax1.loglog(f_orig, orig_psd, color='k', lw=2, label="Original PSD")
-    ax1.set_xlim(f_noise[0], f_noise[-1])
-    ax1.set_xlabel("Frequency [Hz]")
-    ax1.set_ylabel("PSD [1/Hz]")
-    ax1.set_title(f"{len(idxs)} Noise PSDs vs. Original")
-    ax1.axvline(chosen_f_noise, color='red', linewidth=2,
-                label=f"Chosen freq: {chosen_f_noise:.5f} Hz")
-    ax1.legend()
+        ax.loglog(f_noise, noise_psds[i], alpha=alpha, lw=1)
+    # Marker for chosen noise frequency
+    # ax.axvline(chosen_f_noise, color='red', linestyle='--', linewidth=2,
+    #            label=f"Noise freq: {chosen_f_noise:.5f} Hz")
 
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    # Plot the original PSD
+    ax.loglog(f_orig, orig_psd, color='k', lw=2, label="Original PSD")
+    # Marker for chosen original frequency
+    ax.axvline(chosen_f_orig, color='blue', linestyle='--', linewidth=2,
+               label=f"Chosen Freq: {chosen_f_orig:.5f} Hz")
+
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlim(min(f_orig.min(), f_noise.min()),
+                max(f_orig.max(), f_noise.max()))
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("PSD [1/Hz]")
+    ax.legend()
+    # ax.grid(True, which='both', ls='--', lw=0.5)
+    ax.grid(False)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
 
 def plot_noise_psds(
@@ -354,103 +374,395 @@ def plot_noise_psds(
 
 from scripts.medianFuncs import median_pdf
 
-def plot_median_histogram(noise_vals, N, scale, labels,
-                          title="Histogram", n_bins=30, cl=None, conf=None):
+from matplotlib.ticker import ScalarFormatter
 
-    # Histogram
-    fig, ax = plt.subplots()
-    ax.hist(noise_vals, bins=n_bins, density=True,
-            alpha=0.6, edgecolor='k', label='Empirical PDF')
-
-    x = np.linspace(0, noise_vals.max() * 1.1, 500)
-    scales = np.atleast_1d(scale)
-
-    # Handle labels
-    labels = np.atleast_1d(labels)
-    if labels.size != scales.size:
-        raise ValueError("`labels` and `scale` must have the same length")
-    plot_labels = labels
-
-    # Plot one curve per scale
-    for s, lbl in zip(scales, plot_labels):
-        pdf = median_pdf(x, N, s)
-       
-        # 1.  Normalise (robust against finite grid error)
-        pdf /= np.trapz(pdf, x)         
-
-        # 2.  Numerical expectation  μ = ∫ x f(x) dx
-        mu = np.trapz(x * pdf, x)        # or: dx = x[1]-x[0];  mu = np.sum(x*pdf)*dx
-
-        # 3.  Plot the mean of the theoretical curve
-        ax.axvline(mu,
-                linestyle='-.',
-                color='tab:orange',
-                label=f'Mean of {lbl}')
-                
-        ax.plot(x, pdf, lw=2, label=lbl)
+def plot_psd_noise_median_histogram_two_cross_two(
+    noise_vals_list,
+    freq_list,
+    N_list,
+    seg_counts,
+    median_pdf_fn,
+    main_title,
+    n_bins=30
+):
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(main_title, fontsize=16)
     
-    ax.axvline(np.mean(noise_vals), linestyle='--', label="Mean of histogram")
-    print(f"histogram: {noise_vals}")
-    # Add CI lines if given
-    if cl is not None and conf is not None:
-        pct = int(conf * 100)
-        ax.axvline(cl[0], linestyle='--', label=f'Lower {pct}% CI')
-        ax.axvline(cl[1], linestyle='--', label=f'Upper {pct}% CI')
-
-    ax.set_xlabel("PSD")
-    ax.set_ylabel("Probability density")
-    ax.set_title(title)
-    ax.legend()
-    fig.tight_layout()
+    for ax, psd_vals, freq, N, seg in zip(
+        axes.flatten(),
+        noise_vals_list,
+        freq_list,
+        N_list,
+        seg_counts
+    ):
+        # 1) Histogram as raw counts
+        counts, bins, _ = ax.hist(
+            psd_vals,
+            bins=n_bins,
+            density=False,        # raw counts
+            alpha=0.6,
+            edgecolor='k',
+            label="Empirical PDF"
+        )
+        total     = len(psd_vals)
+        bin_width = bins[1] - bins[0]
+        
+        # 2) Build the two model‐median PDFs
+        x0 = np.linspace(0, psd_vals.max()*1.1, 500)
+        s  = psd_vals.mean()
+        
+        #   a) biased (uncentered)
+        pdf0 = median_pdf_fn(x0, N, s)
+        pdf0 /= np.trapz(pdf0, x0)
+        model_mean0 = np.trapz(x0 * pdf0, x0)
+        
+        #   b) aligned (centered at histogram mean)
+        scale = s / model_mean0
+        x1    = x0 * scale
+        pdf1  = pdf0 / scale
+        
+        # 3) Plot model curves **scaled to counts**
+        ax.plot(
+            x0, pdf0 * total * bin_width,
+            'b-', lw=2,
+            label="Median PDF (biased)"
+        )
+        ax.plot(
+            x1, pdf1 * total * bin_width,
+            'r-', lw=2,
+            label="Median PDF (centered at histogram mean)"
+        )
+        
+        # 4) Vertical lines for the two means
+        ax.axvline(
+            model_mean0,
+            color='b', ls='--', lw=2,
+            label=f"Model mean = {model_mean0:.2e}"
+        )
+        ax.axvline(
+            s,
+            color='r', ls='-.', lw=2,
+            label=f"Histogram mean = {s:.2e}"
+        )
+        
+        # 5) Disable scientific offset on y, and style
+        ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+        ax.ticklabel_format(axis='y', style='plain')
+        
+        ax.set_xlim(left=0)
+        ax.set_xlabel(f"PSD @ {freq:.3f} Hz")
+        ax.set_ylabel("Count")
+        ax.set_title(f"{seg} segments")
+        ax.legend(fontsize='small')
+    
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
 
-def plot_psd_noise_histogram(
-        noise_vals,
-        original_psd_value,     # ≈ true PSD at that bin (μ)
-        actual_freq,
-        df,                     # degrees of freedom
-        n_bins=20,
-        title="Noise PSD distribution",
+def plot_psd_noise_median_histogram(
+    noise_vals,
+    actual_freq,
+    N,
+    median_pdf_fn,
+    n_bins=30,
+    title="Noise PSD distribution"
 ):
-    # --- histogram as *probability density* ---------------------------
-    plt.figure()
-    plt.hist(noise_vals,
-             bins=n_bins,
-             density=True,
-             alpha=0.6,
-             edgecolor='k',
-             label="probability density")
+    # 1) Empirical PDF (histogram, normalized to integrate to 1)
+    plt.hist(
+        noise_vals,
+        bins=n_bins,
+        density=True,
+        alpha=0.6,
+        edgecolor='k',
+        label="Empirical PDF"
+    )
 
-    # --- χ² PDF for Welch estimator -----------------------------------
-    x  = np.linspace(0, noise_vals.max()*1.1, 500)
+    # 2) Build fine grid for the model PDF
+    x0 = np.linspace(0, noise_vals.max() * 1.1, 500)
 
-    μ1  = original_psd_value                 
-    pdf = (df/μ1) * chi2.pdf(df * x / μ1, df)   # rescaled χ²
-    plt.plot(x, pdf, 'b-', lw=2, label=rf"$\chi^2_{{{df}}}$ original PSD")
+    # 2a) Uncentered PDF (blue, dashed)
+    s = noise_vals.mean()
+    pdf0 = median_pdf_fn(x0, N, s)
+    pdf0 /= np.trapz(pdf0, x0)
+    model_mean0 = np.trapz(x0 * pdf0, x0)
 
-    μ2  = np.mean(noise_vals)
-    pdf = (df/μ2) * chi2.pdf(df * x / μ2, df)   # rescaled χ²
-    plt.plot(x, pdf, 'r-', lw=2, label=rf"$\chi^2_{{{df}}}$ Histogram average")
+    # 2b) Aligned PDF (red, solid)
+    scale = s / model_mean0
+    x1 = x0 * scale
+    pdf1 = pdf0 / scale
 
-    # 1) “Original PSD” at this frequency bin (already in the code)
-    plt.axvline(original_psd_value,
-                color='b', lw=2, ls='--',
-                label=f"Original PSD = {original_psd_value:.3e}")
+    plt.plot(
+        x0, pdf0,
+        'b-', lw=2,
+        label="Median PDF (uncentered)"
+    )
+    plt.plot(
+        x1, pdf1,
+        'r-', lw=2,
+        label="Median PDF (aligned)"
+    )
 
-    # 2) Mean of the the noise_vals (the mean of histogram)
-    mean_of_psd = np.mean(noise_vals)
-    plt.axvline(mean_of_psd,
-                color='r', lw=2, ls='--',
-                label=f"Mean of histogram = {mean_of_psd:.3e}")
+    # 3) Vertical lines: 
+    #    model‐mean (blue, dashed), histogram‐mean (red, dash‐dot)
+    plt.axvline(
+        model_mean0,
+        color='b', lw=2, ls='--',
+        label=f"Model mean = {model_mean0:.2e}"
+    )
+    plt.axvline(
+        s,
+        color='r', lw=2, ls='--',
+        label=f"Histogram mean = {s:.2e}"
+    )
 
-    # --- decorations ---------------------------------------------------
-    plt.xlabel(f"PSD @ {actual_freq:.3f} Hz  [1/Hz]")
+    # 4) Decorations
+    plt.xlabel(f"PSD @ {actual_freq:.3f} Hz [1/Hz]")
     plt.ylabel("Probability density")
     plt.title(title)
+    plt.xlim(left=0)
     plt.legend()
     plt.tight_layout()
     plt.show()
 
+def draw_chi2(
+    μ: float,
+    df: int,
+    show_percentile: float = 0,
+    x_max: float = None,
+    n_points: int = 500,
+    title: str = "χ² Model"
+):
+    """
+    Plot the χ² distribution model for a PSD estimator:
+        pdf(x) = (df/μ) * χ²_pdf(df * x / μ; df)
+
+    Optionally draw the vertical lines at the lower/upper bounds
+    of the central `show_percentile`% interval.
+
+    Parameters
+    ----------
+    μ : float
+        The “true” PSD value around which the model is centered.
+    df : int
+        Degrees of freedom of the Welch estimator.
+    show_percentile : float, optional
+        Central percentile (0–100). If >0, draws the two edges
+        of that CI; e.g. 95 → 2.5th & 97.5th percentiles.
+    x_max : float, optional
+        Maximum x-axis value. If None, defaults to 3·μ.
+    n_points : int, optional
+        Number of points to sample the PDF curve.
+    title : str, optional
+        Plot title.
+    """
+    # plotting range
+    xmax = x_max if x_max is not None else μ * 3
+    x = np.linspace(0, xmax, n_points)
+
+    # χ²‐based PDF (normalized as a density)
+    pdf = (df / μ) * chi2.pdf(df * x / μ, df)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(x, pdf, 'b-', lw=2, label=rf"$\chi^2_{{{df}}}$ PDF (μ={μ:.2e})")
+
+    # central CI bounds
+    if show_percentile > 0:
+        # lower/upper percentile values
+        lower_p = (100 - show_percentile) / 2
+        upper_p = 100 - lower_p
+        # inverse‐CDF for the scaled χ²: x_p = (μ/df) * χ²_ppf(p, df)
+        x_low  = (μ / df) * chi2.ppf(lower_p  / 100.0, df)
+        x_high = (μ / df) * chi2.ppf(upper_p  / 100.0, df)
+
+        ax.axvline(
+            x_low,
+            color='g', lw=2, ls='--',
+            label=f"{lower_p:.1f}th %ile = {x_low:.2e}"
+        )
+        ax.axvline(
+            x_high,
+            color='g', lw=2, ls='--',
+            label=f"{upper_p:.1f}th %ile = {x_high:.2e}"
+        )
+
+    
+    ax.set_ylim(bottom=0)
+    ax.set_xlim(left=0)
+
+    # decorations
+    ax.set_xlabel("PSD value [1/Hz]")
+    ax.set_ylabel("Probability density")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(which='both', ls='--', lw=0.5)
+    plt.tight_layout()
+    plt.show()
+
+def plot_psd_noise_histogram(
+        noise_vals,
+        original_psd_value,     # ≈ true PSD at that bin (μ₁)
+        actual_freq,
+        df,                     # degrees of freedom
+        n_bins=20,
+        title="Noise PSD distribution",
+        show_pdf=True,
+        show_orig_pdf=True,
+        show_percentile=0       # new: percentile (0–100) to plot, 0 = none
+):
+    # --- histogram as counts -----------------------------------------
+    counts, bins, patches = plt.hist(
+        noise_vals,
+        bins=n_bins,
+        density=False,       # raw counts
+        alpha=0.6,
+        edgecolor='k',
+        label="Count"
+    )
+
+    μ1 = original_psd_value 
+    μ2 = np.mean(noise_vals)       
+
+    if show_pdf:
+        # bin‐width for scaling the PDF curves to counts
+        bin_width = bins[1] - bins[0]
+        total = len(noise_vals)
+
+        # x‐axis for PDF plotting
+        x = np.linspace(0, noise_vals.max()*1.1, 500)
+
+        # --- χ² PDF for original PSD model ---------------------------
+        if show_orig_pdf:
+            pdf1 = (df/μ1) * chi2.pdf(df * x / μ1, df)
+            plt.plot(
+                x,
+                pdf1 * total * bin_width,
+                'b-', lw=2,
+                label=rf"$\chi^2_{{{df}}}$ model (orig. PSD)"
+            )
+
+            # mark the original PSD μ₁
+            plt.axvline(
+                μ1,
+                color='b', lw=2, ls='--',
+                label=f"Orig. PSD = {μ1:.2e}"
+            )
+
+        # --- χ² PDF for histogram‐average model -----------------------
+        pdf2 = (df/μ2) * chi2.pdf(df * x / μ2, df)
+        plt.plot(
+            x,
+            pdf2 * total * bin_width,
+            'r-', lw=2,
+            label=rf"$\chi^2_{{{df}}}$ model (hist. mean)"
+        )
+
+        # mark mean of histogram
+        plt.axvline(
+            μ2,
+            color='r', lw=2, ls='--',
+            label=f"Mean of histogram = {μ2:.2e}"
+        )
+
+    # if requested, mark the p-th percentile of the original‐PSD distribution
+    if show_percentile:
+        p = show_percentile / 100.0
+        # solve F(x_p) = p for X ~ (μ1/df)*χ²_df  =>  x_p = (μ1/df)*chi2.ppf(p, df)
+        x_p = (μ1/df) * chi2.ppf(p, df)
+        plt.axvline(
+            x_p,
+            color='g', lw=2, ls=':',
+            label=f"{show_percentile}th percentile = {x_p:.2e}"
+        )
+
+    # --- decorations ---------------------------------------------------
+    plt.xlabel(f"PSD @ {actual_freq:.3f} Hz  [1/Hz]")
+    plt.ylabel("Count")
+    plt.title(title)
+    plt.legend()
+    plt.xlim(left=0)
+    plt.tight_layout()
+    plt.show()
+
+def plot_psd_noise_histogram_two_cross_two(
+    noise_vals_list,   # list of 1D arrays, one per subplot
+    orig_psd_list,     # list of floats: the “true” PSD at the chosen bin
+    freq_list,         # list of floats: the frequency corresponding to that bin
+    df_list,           # list of ints: degrees of freedom for each subplot
+    seg_counts,        # list of ints: number of segments in each case
+    main_title,        # str: the overall title above the 2×2 grid
+    n_bins=30
+):
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(main_title, fontsize=16)
+    
+    for ax, noise_vals, orig_psd, freq, df, seg in zip(
+        axes.flatten(),
+        noise_vals_list,
+        orig_psd_list,
+        freq_list,
+        df_list,
+        seg_counts
+    ):
+        # 1) raw‐count histogram
+        counts, bins, _ = ax.hist(
+            noise_vals,
+            bins=n_bins,
+            density=False,
+            alpha=0.6,
+            edgecolor='k'
+        )
+        # 2) scale χ²–PDF curves to histogram counts
+        bin_width = bins[1] - bins[0]
+        total = len(noise_vals)
+        x = np.linspace(0, noise_vals.max()*1.1, 500)
+        
+        # model using original PSD
+        pdf1 = (df/orig_psd) * chi2.pdf(df * x / orig_psd, df)
+        ax.plot(
+            x,
+            pdf1 * total * bin_width,
+            'b-',
+            lw=2,
+            label=rf"$\chi^2_{{{df}}}$ (orig)"
+        )
+        
+        # model using histogram mean
+        mean_psd = noise_vals.mean()
+        pdf2 = (df/mean_psd) * chi2.pdf(df * x / mean_psd, df)
+        ax.plot(
+            x,
+            pdf2 * total * bin_width,
+            'r-',
+            lw=2,
+            label=rf"$\chi^2_{{{df}}}$ (hist)"
+        )
+        
+        # vertical markers
+        ax.axvline(
+            orig_psd,
+            color='b',
+            lw=2,
+            ls='--',
+            label=f"True PSD = {orig_psd:.2e}"
+        )
+        ax.axvline(
+            mean_psd,
+            color='r',
+            lw=2,
+            ls='--',
+            label=f"Histogram Mean = {mean_psd:.2e}"
+        )
+        
+        # axis labels & title
+        # ax.set_xlabel(f"PSD @ {freq:.3f} Hz [1/Hz]")
+        ax.set_xlabel(f"PSD @ {freq:.3f} Hz")
+        ax.set_ylabel("Count")
+        ax.set_xlim(left=0)
+        ax.set_title(f"{seg} segments")
+        ax.legend(fontsize='small')
+    
+    # tighten around the suptitle
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
 
 def ligoHistogram(P_stack, Pxx, seg_idx, bins='auto'):
     """

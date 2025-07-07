@@ -11,10 +11,20 @@ args=(
     --simulation_output_h5  glitch_exact.h5
     --pipe_cfg_input        pipeline_cfg.yml
     --orbit_input_h5        orbits.h5
+    --disable_noise         False
 )
 
 python main.py "${args[@]}"
 """
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', '1'):
+        return True
+    if v.lower() in ('no', 'false', 'f', '0'):
+        return False
+    raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def init_cl():
     """Initialize commandline arguments and return Namespace object with all
@@ -70,7 +80,7 @@ def init_cl():
     # LISA INSTRUMENT ARGUMENTS
     parser.add_argument(
         "--disable_noise",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Simulate LISA instruments without noise?"
     )
