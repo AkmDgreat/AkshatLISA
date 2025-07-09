@@ -1,4 +1,5 @@
 import numpy as np
+import math as math
 from math import factorial
 from scipy.stats import chi2
 import warnings
@@ -8,66 +9,19 @@ from scipy.special import digamma, gamma
 from numpy.typing import ArrayLike
 from typing import Tuple
 
-def harmonic_factor(N, method='lower'):
-    if N % 2:                       # odd: only one definition
-        n = (N - 1) // 2
-        return digamma(N + 1) - digamma(n + 1)
-
-    # Several methods to choose from in the even case
-    if method == 'scott':
-        m = N / 2.0
-        print(f"m is {m}") 
-        return digamma(N + 1) - digamma(m)
-
-    m = N // 2                      # even N = 2m
-    if method == 'lower':
-        return digamma(N + 1) - digamma(m + 1)
-    elif method == 'upper':
-        return digamma(N + 1) - digamma(m)
-    elif method == 'average':
-        lower  = digamma(N + 1) - digamma(m + 1)
-        upper  = digamma(N + 1) - digamma(m)
-        return 0.5*(lower + upper)
-    else:
-        raise ValueError("method must be 'lower', 'upper', or 'average'")
-
-# def median_pdf(x, N, s):
-#     """PDF of the sample median for any N"""
-#     x = np.asarray(x)
-#     f = np.exp(-x/s) / s  # PDF
-#     F = 1 - np.exp(-x/s)  # CDF
-#     n = (N-1) / 2 
-
-#     ## gamma(0) is not defined, but 0! = 1 (by definition)
-#     if n == 0:
-#         coeff = gamma(N)
-#     else:
-#         coeff = gamma(N) / (gamma(n) * gamma(n))
-#     print(f"N={N}, n={n}")  
-
-#     return coeff * (F ** n) * ((1-F) ** n) * f       
-
 def median_pdf(x, N, s):
     """
     PDF of the sample median of N i.i.d. Exp(scale = s) variables.
-
-    * Odd  N = 2n+1  → same closed-form you were already using.
-    * Even N = 2k    → uses the integral representation
-
-            f(m) ∝ e^{-Nm} ∫_{0}^{e^{m}-1} v^{k-1}/(1+v) dv
-
-      which can be evaluated with a short alternating power-series +
-      logarithm – no special functions required.
     """
     x = np.asarray(x, dtype=float)
-    y = x / s                       # work in the unit-rate variable
+    y = x / s                       
 
-    # ---------- odd N (unchanged) ----------
+    # ---------- odd N ----------
     if N % 2 == 1:
         n = (N - 1) // 2
-        F = 1 - np.exp(-y)          # CDF  of Exp(1)
-        f = np.exp(-y)              # PDF  of Exp(1)
-        coeff = gamma(N) / (gamma(n + 1) * gamma(n + 1))
+        F = 1 - np.exp(-y)         
+        f = np.exp(-y)              
+        coeff = factorial(N) / (factorial(n) * factorial(n))
         pdf  = coeff * (F**n) * ((1 - F)**n) * f / s
         return pdf
 
@@ -86,10 +40,11 @@ def median_pdf(x, N, s):
 
     # numerical guard – tiny negatives can appear from round-off
     pdf = np.where(pdf < 0, 0.0, pdf)
-    return pdf             
+    return pdf   
 
 ### The following three functions are used to prove the fact that 
-### using Digammma or integration gives same
+### using Digammma or integration gives same number
+### for the median-odd case
 def y_n(x, n, s):
     f = np.exp(-x/s) / s  # PDF
     F = 1 - np.exp(-x/s)  # CDF
@@ -106,8 +61,8 @@ def ratio_numerical(n, s=1.0):
 
     # iterate over every element (ndim-safe)
     for idx, n_scalar in np.ndenumerate(n_arr):
-        num, _ = quad(lambda x: x * y_n(x, n_scalar, s), 0, np.inf)
-        den, _ = quad(lambda x:     y_n(x, n_scalar, s), 0, np.inf)
+        num, _ = quad(lambda x: x * y_n(x, n_scalar, s), 0, np.inf, epsrel=1e-8, limit=100)
+        den, _ = quad(lambda x:     y_n(x, n_scalar, s), 0, np.inf, epsrel=1e-8, limit=100)
         out[idx] = num / den
 
     # return a scalar if a scalar went in

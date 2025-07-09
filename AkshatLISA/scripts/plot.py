@@ -6,6 +6,9 @@ import numpy as np
 import random
 from scipy.stats import chi2
 from collections.abc import Iterable
+from scipy.integrate import simps
+from scripts.medianFuncs import median_pdf, ratio_numerical, ratio
+from matplotlib.ticker import ScalarFormatter
 
 def plot_residual_histogram(residual: np.ndarray,
                             bins: int | str = "auto",
@@ -154,6 +157,32 @@ def plotLigoPsd(data,
     
     plt.tight_layout()
     plt.show()                         
+
+from scipy.integrate import quad
+
+def plot_scaled_median_vs_mean_pdf(N, s=1.0):
+    x = np.linspace(0, 3*s, 2000)
+    df = 2 * N
+    factor = ratio_numerical(N, s)
+
+    mean_mean = s*factor
+    pdf_mean = (df / mean_mean) * chi2.pdf((df / (mean_mean)) * x, df)
+    pdf_median = median_pdf(x, N, s)
+    pdf_median /= simps(pdf_median, x)
+    mean_median = simps(x * pdf_median, x)
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(x, pdf_mean, label=f'χ² (2×{N} dof, mean)', lw=2)
+    plt.plot(x, pdf_median, label='Median PDF', lw=2)
+    plt.axvline(mean_mean, ls='--', lw=2, label=f'Mean mean = {mean_mean}')
+    plt.axvline(mean_median, ls=':', lw=2, label=f'Mean median = {mean_median}')
+    plt.xlabel("x")
+    plt.ylabel("PDF")
+    plt.title(f"Normalized Mean vs Median PDF (N={N})")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
 def plot(data, t, f, psd, labels, title,
          show_time_series=True, f_lims=None,
@@ -371,10 +400,6 @@ def plot_noise_psds(
     plt.legend()
     plt.tight_layout()
     plt.show()
-
-from scripts.medianFuncs import median_pdf
-
-from matplotlib.ticker import ScalarFormatter
 
 def plot_psd_noise_median_histogram_two_cross_two(
     noise_vals_list,
