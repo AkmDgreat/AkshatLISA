@@ -184,6 +184,30 @@ def plot_scaled_median_vs_mean_pdf(N, s=1.0):
     plt.tight_layout()
     plt.show()
 
+def plot_scaled_median_vs_mean_pdf_2(N, s=1.0):
+    x = np.linspace(0, 3*s, 2000)
+    df = 2 * N
+
+    pdf_median = median_pdf(x, N, s)
+    pdf_median /= simps(pdf_median, x)
+    mean_median = simps(x * pdf_median, x)
+
+    mean_mean = mean_median
+    pdf_mean = (df / mean_mean) * chi2.pdf((df / (mean_mean)) * x, df)
+    
+    plt.figure(figsize=(8, 4))
+    plt.plot(x, pdf_mean, label=f'χ² (2×{N} dof, mean)', lw=2)
+    plt.plot(x, pdf_median, label='Median PDF', lw=2)
+    plt.axvline(mean_mean, ls='--', lw=2, label=f'Mean mean = {mean_mean}')
+    plt.axvline(mean_median, ls=':', lw=2, label=f'Mean median = {mean_median}')
+    plt.xlabel("x")
+    plt.ylabel("PDF")
+    plt.title(f"Normalized Mean vs Median PDF (N={N})")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
 def plot(data, t, f, psd, labels, title,
          show_time_series=True, f_lims=None,
         bigtitle=None, vlines=None, logpsd=False):
@@ -236,10 +260,9 @@ def plot(data, t, f, psd, labels, title,
     if f_lims is not None:
         ax1.set_xlim(f_lims[0], f_lims[1])
     
-    if vlines is not None:
-        # make whatever the user passed iterable
-        for v in np.atleast_1d(vlines):
-            ax1.axvline(v, ls=":", lw=1, color="k", alpha=0.6)
+    if show_time_series and vlines is not None:
+        for x in np.atleast_1d(vlines):
+            ax0.axvline(x=t[x], ls=":", lw=1, color="k", alpha=0.6)
 
     ax1.set_xlabel(r"$Frequency \ [Hz]$")
     ax1.set_ylabel(r"$PSD \ [V^2/\sqrt{Hz}]$")
