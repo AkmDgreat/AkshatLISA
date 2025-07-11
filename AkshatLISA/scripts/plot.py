@@ -161,16 +161,19 @@ def plotLigoPsd(data,
 from scipy.integrate import quad
 
 def plot_scaled_median_vs_mean_pdf(N, s=1.0):
-    x = np.linspace(0, 3*s, 2000)
     df = 2 * N
-    factor = ratio_numerical(N, s)
+    x_max = max(20*s, chi2.ppf(0.999, df) * (s/df))   # option 1
+    x     = np.linspace(0, x_max, 6000)
 
-    mean_mean = s*factor
+    mean_mean = s
     pdf_mean = (df / mean_mean) * chi2.pdf((df / (mean_mean)) * x, df)
-    pdf_median = median_pdf(x, N, s)
-    pdf_median /= simps(pdf_median, x)
-    mean_median = simps(x * pdf_median, x)
 
+    pdf_median = median_pdf(x, N, s)
+    mean_median = ratio_numerical(N, s)
+    c = s / mean_median
+    pdf_median = median_pdf(x / c, N, s) / c  
+    mean_median = simps(x * pdf_median, x)
+    
     plt.figure(figsize=(8, 4))
     plt.plot(x, pdf_mean, label=f'χ² (2×{N} dof, mean)', lw=2)
     plt.plot(x, pdf_median, label='Median PDF', lw=2)
@@ -185,244 +188,40 @@ def plot_scaled_median_vs_mean_pdf(N, s=1.0):
     plt.show()
 
 def plot_scaled_median_vs_mean_pdf_2(N, s=1.0):
-    x = np.linspace(0, 3*s, 2000)
-    df = 2 * N
+    df = 2 * N                   
 
-    pdf_median = median_pdf(x, N, s)
-    pdf_median /= simps(pdf_median, x)
-    mean_median = simps(x * pdf_median, x)
+    x_tmp = np.linspace(0, 50*s, 20000)      
+    pdf_median = median_pdf(x_tmp, N, s)
+    pdf_median /= simpson(pdf_median, x=x_tmp)   # normalise
+    mean_median = simpson(x_tmp * pdf_median, x=x_tmp)
+    c          = s / mean_median                  
 
-    mean_mean = mean_median
-    pdf_mean = (df / mean_mean) * chi2.pdf((df / (mean_mean)) * x, df)
+    # Build the *final* grid, wide enough for the stretched pdf
+    # x_max = max(5*s, 6*c*s, chi2.ppf(0.999, df) * (s/df))
+    x_max = 5*s
+    x     = np.linspace(0, x_max, 8000)
+
+    pdf_mean = (df / s) * chi2.pdf((df/s) * x, df)
+    second_moment_mean = simpson(x**2 * pdf_mean, x = x)
+    std_mean = np.sqrt(second_moment_mean - s**2)
+
+    pdf_median = median_pdf(x / c, N, s) / c
+    pdf_median /= simpson(pdf_median, x=x)     
+    mean_median = simpson(x * pdf_median, x=x) 
+    second_moment_median = simpson(x**2 * pdf_median, x = x)
+    std_median = np.sqrt(second_moment_median - mean_median**2)
     
     plt.figure(figsize=(8, 4))
-    plt.plot(x, pdf_mean, label=f'χ² (2×{N} dof, mean)', lw=2)
-    plt.plot(x, pdf_median, label='Median PDF', lw=2)
-    plt.axvline(mean_mean, ls='--', lw=2, label=f'Mean mean = {mean_mean}')
-    plt.axvline(mean_median, ls=':', lw=2, label=f'Mean median = {mean_median}')
-    plt.xlabel("x")
-    plt.ylabel("PDF")
-    plt.title(f"Normalized Mean vs Median PDF (N={N})")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-def plot(data, t, f, psd, labels, title,
-         show_time_series=True, f_lims=None,
-        bigtitle=None, vlines=None, logpsd=False):
-    """
-    Plot a time-series and one or more PSD estimates side by side,
-    or just the PSD if show_time_series=False.
-    """
-    # wrap single inputs into lists
-    if not isinstance(psd, (list, tuple)):
-        psds = [psd]
-    else:
-        psds = psd
-
-    if not isinstance(labels, (list, tuple)):
-        labels = [labels]
-
-    if len(psds) != len(labels):
-        raise ValueError("`psd` and `labels` must have the same length")
-
-    # choose layout
-    ncols = 2 if show_time_series else 1
-    fig, axes = plt.subplots(1, ncols, figsize=(5*ncols, 4))
-
-    if bigtitle is not None:
-        fig.suptitle(bigtitle, fontsize=16)
-
-    # if only one axis, wrap it in a list so indexing below still works
-    if ncols == 1:
-        axes = [axes]
-
-    # 1) time-domain (optional)
-    if show_time_series:
-        ax0 = axes[0]
-        ax0.plot(t, data)
-        ax0.set_xlim(t[0], t[-1])
-        ax0.set_xlabel(r"$Time \ [s]$")
-        ax0.set_ylabel(title)
-        ax0.grid(False)
-        # ax0.set_title(r"$Time \ series$")
-
-    # 2) PSD(s)
-    ax1 = axes[-1]
-    for psd_array, label in zip(psds, labels):
-        if (logpsd):
-            ax1.loglog(f, psd_array, 'o-', label=label)
-            # ax1.set_yscale('log')
-        else:
-            ax1.loglog(f, psd_array, label=label)
-    
-    if f_lims is not None:
-        ax1.set_xlim(f_lims[0], f_lims[1])
-    
-    if show_time_series and vlines is not None:
-        for x in np.atleast_1d(vlines):
-            ax0.axvline(x=t[x], ls=":", lw=1, color="k", alpha=0.6)
-
-    ax1.set_xlabel(r"$Frequency \ [Hz]$")
-    ax1.set_ylabel(r"$PSD \ [V^2/\sqrt{Hz}]$")
-    ax1.legend()
-
-    # ax.plot(f_logpsd, psd_logpsd, 'o-', label='log-PSD')   
-
-    ax1.grid(False)
-
-    fig.tight_layout()
-    return fig, axes
-
-def draw_segments(t, data, nperseg, noverlap):
-    N = len(data)
-    step = nperseg - noverlap
-    starts = np.arange(0, N, step)
-
-    plt.figure()
-    plt.plot(t, data)
-    plt.xlim(t[0], t[-1])
-    plt.xlabel("Time [s]")
-    plt.ylabel("TDI-X")
-
-    for start in starts:
-        # always draw the start line
-        plt.axvline(t[start], color='C1', linestyle='--')
-        # only draw an end line if it falls inside the data
-        end = start + nperseg
-        if end < N:
-            plt.axvline(t[end], color='C0', linestyle='--')
-
-    plt.grid(False)
-    plt.tight_layout()
-    plt.show()
-
-# def draw_segments_lpsd(t, data, L, D):
-#     print(f"L.shape = {L.shape}, D.shape = {D.shape}")
-#     N = len(data)
-    
-#     plt.figure(figsize=(10, 3))
-#     plt.plot(t, data, color='C0', linewidth=0.5)
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("TDI-X")
-    
-#     # for each frequency-bin j, draw its windows
-#     for Lj, Dj in zip(L, D):
-#         starts = np.arange(0, N, Dj)
-#         for s in starts:
-#             if s < N:
-#                 plt.axvline(t[s], color='C1', linestyle='--', alpha=0.2)
-#             e = s + Lj
-#             if e < N:
-#                 plt.axvline(t[e], color='C1', linestyle='-.', alpha=0.2)
-    
-#     plt.xlim(t[0], t[-1])
-#     plt.grid(False)
-#     plt.tight_layout()
-#     plt.show()
-
-def draw_segments_lpsd(t, data, L, D, bin_idx):
-    N = len(data)
-    Lj = L[bin_idx]
-    Dj = D[bin_idx]
-
-    starts = np.arange(0, N, Dj)
-
-    plt.figure(figsize=(10,3))
-    plt.plot(t, data, color='C0', linewidth=0.5)
-    plt.xlabel("Time [s]")
-    plt.ylabel("TDI-X")
-    plt.title(f"LPSD windows at bin {bin_idx}: L={Lj}, D={Dj}")
-
-    for s in starts:
-        # start‐line
-        plt.axvline(t[s], color='C1', linestyle='--', alpha=0.8)
-        # end‐line
-        e = s + Lj
-        if e < N:
-            plt.axvline(t[e], color='C1', linestyle='-.', alpha=0.8)
-
-    plt.xlim(t[0], t[-1])
-    plt.grid(False)
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_orig_and_noise_psds(
-    f_orig,
-    orig_psd,
-    chosen_f_orig,
-    f_noise,
-    noise_psds,
-    chosen_f_noise,
-    n=5,
-    alpha=0.3,
-    bigtitle="PSD Comparison"
-):
-    """
-    Plot the original PSD alongside a vertical marker at `chosen_f_orig`,
-    and on the right plot show `n` random noise PSD realizations with
-    their vertical marker at `chosen_f_noise`.
-    """
-    # pick up to n random noise realizations
-    n_realizations = noise_psds.shape[0]
-    idxs = random.sample(range(n_realizations), min(n, n_realizations))
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    fig.suptitle(bigtitle, fontsize=16)
-
-    # Plot the noise PSDs
-    for i in idxs:
-        ax.loglog(f_noise, noise_psds[i], alpha=alpha, lw=1)
-    # Marker for chosen noise frequency
-    # ax.axvline(chosen_f_noise, color='red', linestyle='--', linewidth=2,
-    #            label=f"Noise freq: {chosen_f_noise:.5f} Hz")
-
-    # Plot the original PSD
-    ax.loglog(f_orig, orig_psd, color='k', lw=2, label="Original PSD")
-    # Marker for chosen original frequency
-    ax.axvline(chosen_f_orig, color='blue', linestyle='--', linewidth=2,
-               label=f"Chosen Freq: {chosen_f_orig:.5f} Hz")
-
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    ax.set_xlim(min(f_orig.min(), f_noise.min()),
-                max(f_orig.max(), f_noise.max()))
-    ax.set_xlabel("Frequency [Hz]")
-    ax.set_ylabel("PSD [1/Hz]")
-    ax.legend()
-    # ax.grid(True, which='both', ls='--', lw=0.5)
-    ax.grid(False)
-
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.show()
-
-def plot_noise_psds(
-    freq,
-    psd_orig,
-    noise_psds,
-    n_to_plot=5,
-    alpha=0.7
-):
-    """
-    Randomly selects n_to_plot noise PSDs from the ensemble and plots them
-    alongside the original PSD.
-    """
-    # Sample without replacement
-    samples = random.sample(noise_psds, min(n_to_plot, len(noise_psds)))
-    
-    plt.figure(figsize=(8,5))
-    for psd_noise in samples:
-        plt.loglog(freq, psd_noise, alpha=alpha, lw=1)
-    plt.loglog(freq, psd_orig, color='k', lw=2, label='Original PSD')
-    plt.xlabel("Frequency [Hz]")
-    plt.ylabel("PSD [1/Hz]")
-    plt.xlim(freq[1], freq[-1])
-    plt.title(f"{len(samples)} Random Noise PSDs vs. Original")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    plt.autoscale(enable=True, axis='y')
+    plt.plot(x, pdf_mean,   lw=2, label=f'WOSA PDF (σ={std_mean:.3f})')
+    plt.plot(x, pdf_median, lw=2, label=f'WOSA-Median PDF σ={std_median:.3f})')
+    plt.xlim(0, 3)
+    plt.ylim(bottom = 0)
+    plt.axvline(s,          ls='--', lw=2, label=f'Mean of PDF(s) = {s}')
+    # plt.axvline(mean_median,ls=':',  lw=2, label=f'Mean median = {mean_median:.3f}')
+    plt.xlabel('x'); plt.ylabel('PDF')
+    plt.title(f'PDF for WOSA-mean and WOSA-median if PSD={s} ({N} segments)')
+    plt.legend(); plt.grid(True); plt.tight_layout(); plt.show()
 
 def plot_psd_noise_median_histogram_two_cross_two(
     noise_vals_list,
@@ -504,6 +303,227 @@ def plot_psd_noise_median_histogram_two_cross_two(
         ax.legend(fontsize='small')
     
     fig.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
+def plot(data, t, f, psd, labels, title,
+         show_time_series=True, f_lims=None,
+        bigtitle=None, vlines=None, logpsd=False):
+    """
+    Plot a time-series and one or more PSD estimates side by side,
+    or just the PSD if show_time_series=False.
+    """
+    # wrap single inputs into lists
+    if not isinstance(psd, (list, tuple)):
+        psds = [psd]
+    else:
+        psds = psd
+
+    if not isinstance(labels, (list, tuple)):
+        labels = [labels]
+
+    if len(psds) != len(labels):
+        raise ValueError("`psd` and `labels` must have the same length")
+
+    # choose layout
+    ncols = 2 if show_time_series else 1
+    fig, axes = plt.subplots(1, ncols, figsize=(5*ncols, 4))
+
+    if bigtitle is not None:
+        fig.suptitle(bigtitle, fontsize=16)
+
+    # if only one axis, wrap it in a list so indexing below still works
+    if ncols == 1:
+        axes = [axes]
+
+    # 1) time-domain (optional)
+    if show_time_series:
+        ax0 = axes[0]
+        ax0.plot(t, data)
+        ax0.set_xlim(t[0], t[-1])
+        ax0.set_xlabel(r"$Time \ [s]$")
+        ax0.set_ylabel(title)
+        ax0.grid(False)
+        # ax0.set_title(r"$Time \ series$")
+
+    # 2) PSD(s)
+    ax1 = axes[-1]
+    for psd_array, label in zip(psds, labels):
+        if (logpsd):
+            ax1.loglog(f, psd_array, 'o-', label=label)
+            # ax1.set_yscale('log')
+        else:
+            ax1.loglog(f, psd_array, label=label)
+    
+    if f_lims is not None:
+        ax1.set_xlim(f_lims[0], f_lims[1])
+    
+    if show_time_series and vlines is not None:
+        for x in np.atleast_1d(vlines):
+            ax0.axvline(x=t[x], ls=":", lw=1, color="k", alpha=0.6)
+
+    ax1.set_xlabel(r"$Frequency \ [Hz]$")
+    ax1.set_ylabel(r"$PSD \ [V^2/\sqrt{Hz}]$")
+    ax1.legend()
+
+    # ax.plot(f_logpsd, psd_logpsd, 'o-', label='log-PSD')   
+
+    ax1.grid(False)
+
+    fig.tight_layout()
+    return fig, axes
+
+def plot_segments(data, nperseg, overlap=0.5, t=None, fs=None, ax=None):
+    """
+    Plot concatenated overlapping segments from 1D data.
+    
+    Parameters
+    ----------
+    data : array-like
+        Input signal of length N.
+    nperseg : int
+        Number of points in each segment.
+    overlap : float or int, optional
+        If float in (0,1), interpreted as fraction of nperseg.
+        If int >= 1, interpreted as number of overlapping points.
+        Default is 0.5 (50% overlap).
+    t : array-like, optional
+        Time vector corresponding to data. Used for x-axis scaling.
+    fs : float, optional
+        Sampling frequency (Hz). Used if `t` is not provided.
+    ax : matplotlib.axes.Axes, optional
+        Axes to draw on. If None, creates a new figure and axes.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure containing the plot.
+    ax : matplotlib.axes.Axes
+        Axes containing the plot.
+    """
+    # Determine overlap in points
+    if isinstance(overlap, float) and 0 < overlap < 1:
+        overlap_pts = int(overlap * nperseg)
+    else:
+        overlap_pts = int(overlap)
+    step = nperseg - overlap_pts
+
+    N = len(data)
+    n_segments = (N - overlap_pts) // step
+    if n_segments < 1:
+        raise ValueError("Not enough data for at least one full segment.")
+
+    # Extract and concatenate segments
+    segments = [data[i*step : i*step + nperseg] for i in range(n_segments)]
+    concatenated = np.concatenate(segments)
+
+    # Build x-axis
+    if t is not None:
+        dt = t[1] - t[0]
+        x = np.arange(len(concatenated)) * dt
+        xlabel = "Time [s]"
+    elif fs is not None:
+        x = np.arange(len(concatenated)) / fs
+        xlabel = "Time [s]"
+    else:
+        x = np.arange(len(concatenated))
+        xlabel = "Sample index"
+
+    # Create plot
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 4))
+    else:
+        fig = ax.figure
+    ax.plot(x, concatenated, lw=0.8)
+
+    # Draw vertical lines at segment boundaries
+    for i in range(1, n_segments):
+        boundary = i * nperseg
+        if t is not None:
+            boundary = boundary * dt
+        elif fs is not None:
+            boundary = boundary / fs
+        ax.axvline(boundary, ls=":", lw=1, color="k", alpha=0.6)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Amplitude")
+    ax.set_title(f"Overlapping segments (nperseg={nperseg}, overlap={overlap})")
+    ax.set_xlim(0, x[-1])
+    plt.tight_layout()
+    return fig, ax
+
+def plot_orig_and_noise_psds(
+    f_orig,
+    orig_psd,
+    chosen_f_orig,
+    f_noise,
+    noise_psds,
+    chosen_f_noise,
+    n=5,
+    alpha=0.3,
+    bigtitle="PSD Comparison"
+):
+    """
+    Plot the original PSD alongside a vertical marker at `chosen_f_orig`,
+    and on the right plot show `n` random noise PSD realizations with
+    their vertical marker at `chosen_f_noise`.
+    """
+    # pick up to n random noise realizations
+    n_realizations = noise_psds.shape[0]
+    idxs = random.sample(range(n_realizations), min(n, n_realizations))
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    fig.suptitle(bigtitle, fontsize=16)
+
+    # Plot the noise PSDs
+    for i in idxs:
+        ax.loglog(f_noise, noise_psds[i], alpha=alpha, lw=1)
+    # Marker for chosen noise frequency
+    # ax.axvline(chosen_f_noise, color='red', linestyle='--', linewidth=2,
+    #            label=f"Noise freq: {chosen_f_noise:.5f} Hz")
+
+    # Plot the original PSD
+    ax.loglog(f_orig, orig_psd, color='k', lw=2, label="Original PSD")
+    # Marker for chosen original frequency
+    ax.axvline(chosen_f_orig, color='blue', linestyle='--', linewidth=2,
+               label=f"Chosen Freq: {chosen_f_orig:.5f} Hz")
+
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlim(min(f_orig.min(), f_noise.min()),
+                max(f_orig.max(), f_noise.max()))
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("PSD [1/Hz]")
+    ax.legend()
+    # ax.grid(True, which='both', ls='--', lw=0.5)
+    ax.grid(False)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
+def plot_noise_psds(
+    freq,
+    psd_orig,
+    noise_psds,
+    n_to_plot=5,
+    alpha=0.7
+):
+    """
+    Randomly selects n_to_plot noise PSDs from the ensemble and plots them
+    alongside the original PSD.
+    """
+    # Sample without replacement
+    samples = random.sample(noise_psds, min(n_to_plot, len(noise_psds)))
+    
+    plt.figure(figsize=(8,5))
+    for psd_noise in samples:
+        plt.loglog(freq, psd_noise, alpha=alpha, lw=1)
+    plt.loglog(freq, psd_orig, color='k', lw=2, label='Original PSD')
+    plt.xlabel("Frequency [Hz]")
+    plt.ylabel("PSD [1/Hz]")
+    plt.xlim(freq[1], freq[-1])
+    plt.title(f"{len(samples)} Random Noise PSDs vs. Original")
+    plt.legend()
+    plt.tight_layout()
     plt.show()
 
 def plot_psd_noise_median_histogram(
