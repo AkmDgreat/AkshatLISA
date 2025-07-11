@@ -6,7 +6,7 @@ import numpy as np
 import random
 from scipy.stats import chi2
 from collections.abc import Iterable
-from scipy.integrate import simps
+from scipy.integrate import simpson
 from scripts.medianFuncs import median_pdf, ratio_numerical, ratio
 from matplotlib.ticker import ScalarFormatter
 
@@ -161,33 +161,6 @@ def plotLigoPsd(data,
 from scipy.integrate import quad
 
 def plot_scaled_median_vs_mean_pdf(N, s=1.0):
-    df = 2 * N
-    x_max = max(20*s, chi2.ppf(0.999, df) * (s/df))   # option 1
-    x     = np.linspace(0, x_max, 6000)
-
-    mean_mean = s
-    pdf_mean = (df / mean_mean) * chi2.pdf((df / (mean_mean)) * x, df)
-
-    pdf_median = median_pdf(x, N, s)
-    mean_median = ratio_numerical(N, s)
-    c = s / mean_median
-    pdf_median = median_pdf(x / c, N, s) / c  
-    mean_median = simps(x * pdf_median, x)
-    
-    plt.figure(figsize=(8, 4))
-    plt.plot(x, pdf_mean, label=f'χ² (2×{N} dof, mean)', lw=2)
-    plt.plot(x, pdf_median, label='Median PDF', lw=2)
-    plt.axvline(mean_mean, ls='--', lw=2, label=f'Mean mean = {mean_mean}')
-    plt.axvline(mean_median, ls=':', lw=2, label=f'Mean median = {mean_median}')
-    plt.xlabel("x")
-    plt.ylabel("PDF")
-    plt.title(f"Normalized Mean vs Median PDF (N={N})")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-def plot_scaled_median_vs_mean_pdf_2(N, s=1.0):
     df = 2 * N                   
 
     x_tmp = np.linspace(0, 50*s, 20000)      
