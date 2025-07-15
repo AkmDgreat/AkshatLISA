@@ -163,16 +163,11 @@ from scipy.integrate import quad
 def plot_scaled_median_vs_mean_pdf(N, s=1.0):
     df = 2 * N                   
 
-    x_tmp = np.linspace(0, 50*s, 20000)      
-    pdf_median = median_pdf(x_tmp, N, s)
-    pdf_median /= simpson(pdf_median, x=x_tmp)   # normalise
-    mean_median = simpson(x_tmp * pdf_median, x=x_tmp)
+    x = np.linspace(0, 50*s, 20000)      
+    pdf_median = median_pdf(x, N, s)
+    pdf_median /= simpson(pdf_median, x=x)   # normalise
+    mean_median = simpson(x * pdf_median, x=x)
     c          = s / mean_median                  
-
-    # Build the *final* grid, wide enough for the stretched pdf
-    # x_max = max(5*s, 6*c*s, chi2.ppf(0.999, df) * (s/df))
-    x_max = 5*s
-    x     = np.linspace(0, x_max, 8000)
 
     pdf_mean = (df / s) * chi2.pdf((df/s) * x, df)
     second_moment_mean = simpson(x**2 * pdf_mean, x = x)
@@ -188,10 +183,37 @@ def plot_scaled_median_vs_mean_pdf(N, s=1.0):
     plt.autoscale(enable=True, axis='y')
     plt.plot(x, pdf_mean,   lw=2, label=f'WOSA PDF (σ={std_mean:.3f})')
     plt.plot(x, pdf_median, lw=2, label=f'WOSA-Median PDF σ={std_median:.3f})')
-    plt.xlim(0, 3)
+    plt.xlim(0, 3*s)
     plt.ylim(bottom = 0)
     plt.axvline(s,          ls='--', lw=2, label=f'Mean of PDF(s) = {s}')
     # plt.axvline(mean_median,ls=':',  lw=2, label=f'Mean median = {mean_median:.3f}')
+    plt.xlabel('x'); plt.ylabel('PDF')
+    plt.title(f'PDF for WOSA-mean and WOSA-median if PSD={s} ({N} segments)')
+    plt.legend(); plt.grid(True); plt.tight_layout(); plt.show()
+
+def plot_unscaled_median_vs_mean_pdf(N, s=1.0):
+    df = 2 * N                   
+
+    x = np.linspace(0, 50*s, 20000)      
+    pdf_median = median_pdf(x, N, s)
+    pdf_median /= simpson(pdf_median, x=x)   # normalise
+    mean_median = simpson(x * pdf_median, x=x)
+    second_moment_median = simpson(x**2 * pdf_median, x = x)
+    std_median = np.sqrt(second_moment_median - mean_median**2)
+
+    pdf_mean = (df / s) * chi2.pdf((df/s) * x, df)
+    second_moment_mean = simpson(x**2 * pdf_mean, x = x)
+    std_mean = np.sqrt(second_moment_mean - s**2)
+
+    
+    plt.figure(figsize=(8, 4))
+    plt.autoscale(enable=True, axis='y')
+    line_mean, = plt.plot(x, pdf_mean,   lw=2, label=f'WOSA PDF (σ={std_mean:.3f})')
+    line_median, = plt.plot(x, pdf_median, lw=2, label=f'WOSA-Median PDF σ={std_median:.3f})')
+    plt.xlim(0, 3*s)
+    plt.ylim(bottom = 0)
+    plt.axvline(s,          ls=':', lw=2, color=line_mean.get_color(), label=f'Mean mean = {s}')
+    plt.axvline(mean_median,ls=':',  lw=2, color=line_median.get_color(), label=f'Mean median = {mean_median:.3f}')
     plt.xlabel('x'); plt.ylabel('PDF')
     plt.title(f'PDF for WOSA-mean and WOSA-median if PSD={s} ({N} segments)')
     plt.legend(); plt.grid(True); plt.tight_layout(); plt.show()
@@ -234,9 +256,9 @@ def plot_psd_noise_median_histogram_two_cross_two(
         #   a) biased (uncentered)
         pdf0 = median_pdf_fn(x0, N, s)
         pdf0 /= np.trapz(pdf0, x0)
-        model_mean0 = np.trapz(x0 * pdf0, x0)
         
         #   b) aligned (centered at histogram mean)
+        model_mean0 = np.trapz(x0 * pdf0, x0)
         scale = s / model_mean0
         x1    = x0 * scale
         pdf1  = pdf0 / scale

@@ -16,31 +16,30 @@ def median_pdf(x, N, s):
     x = np.asarray(x, dtype=float)
     y = x / s                       
 
-    # ---------- odd N ----------
     if N % 2 == 1:
         n = (N - 1) // 2
         F = 1 - np.exp(-y)         
         f = np.exp(-y)              
         coeff = factorial(N) / (factorial(n) * factorial(n))
         pdf  = coeff * (F**n) * ((1 - F)**n) * f / s
-        return pdf
+        
+    else: 
+        k   = N // 2
+        v   = np.exp(y) - 1.0           # upper limit of the inner integral
 
-    # ---------- even N = 2k ----------
-    k   = N // 2
-    v   = np.exp(y) - 1.0           # upper limit of the inner integral
+        # I(k,v) = ∫_0^v t^{k-1}/(1+t) dt
+        #        = (-1)^{k-1} [ ln(1+v) + Σ_{j=1}^{k-1} (-1)^j v^j / j ]
+        S = np.log1p(v)                 # j = 0 term
+        for j in range(1, k):
+            S += (-1)**j * v**j / j
+        I = (-1)**(k - 1) * S           # the integral value
 
-    # I(k,v) = ∫_0^v t^{k-1}/(1+t) dt
-    #        = (-1)^{k-1} [ ln(1+v) + Σ_{j=1}^{k-1} (-1)^j v^j / j ]
-    S = np.log1p(v)                 # j = 0 term
-    for j in range(1, k):
-        S += (-1)**j * v**j / j
-    I = (-1)**(k - 1) * S           # the integral value
+        pdf = np.exp(-N * y) * I / s    # scale back to Exp(scale = s)
 
-    pdf = np.exp(-N * y) * I / s    # scale back to Exp(scale = s)
+        # numerical guard – tiny negatives can appear from round-off
+        pdf = np.where(pdf < 0, 0.0, pdf)
 
-    # numerical guard – tiny negatives can appear from round-off
-    pdf = np.where(pdf < 0, 0.0, pdf)
-    return pdf   
+    return pdf  
 
 ### The following three functions are used to prove the fact that 
 ### using Digammma or integration gives same number
