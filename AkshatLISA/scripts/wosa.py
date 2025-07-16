@@ -106,8 +106,24 @@ def wosa(x,
         P = P_stack.mean(axis=0)
     elif method == "median":
         P = np.median(P_stack, axis=0)
+
+    elif method == "outlier_rejection":
+        # 1. mean & (sample) std-dev per frequency bin
+        mu  = P_stack.mean(axis=0)                 # shape (n_freq,)
+        sig = P_stack.std(axis=0, ddof=1)
+
+        # 2. boolean mask of inliers  |x-μ| ≤ 3σ
+        z = np.abs(P_stack - mu) / sig             # broadcasts over segments axis
+        mask = z <= 3                              # shape (n_seg, n_freq)
+
+        # 3. average only the inliers; fall back to μ if all points were rejected
+        inlier_count = mask.sum(axis=0)            # how many survived in each bin
+        # avoid divide-by-zero: where inlier_count==0, keep the original mean
+        P = np.where(inlier_count,
+                    (P_stack * mask).sum(axis=0) / inlier_count,
+                    mu)
     else:
-        raise ValueError("method must be 'mean' or 'median'")
+        raise ValueError("method must be 'mean' or 'median' or 'outlier_rejection'")
     
     f = np.fft.rfftfreq(nfft, d=1.0/fs)
     # print("Exiting custom wosa")
