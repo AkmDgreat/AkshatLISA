@@ -106,22 +106,69 @@ def wosa(x,
         P = P_stack.mean(axis=0)
     elif method == "median":
         P = np.median(P_stack, axis=0)
+        # print(f"median col: {P_stack[: 200]}")
 
+    # elif method == "outlier_rejection":
+    #     nseg, nfreq = P_stack.shape
+    #     P = np.empty(nfreq, dtype=P_stack.dtype)
+
+    #     # for each frequency bin j, find & reject any segment >3σ (leave-one-out)
+    #     for j in range(nfreq):
+    #         col = P_stack[:, j]
+
+    #         # compute leave-one-out z-scores
+    #         z = np.zeros(nseg, dtype=float)
+    #         for i in range(nseg):
+    #             # exclude i
+    #             others = np.delete(col, i)
+    #             μ = others.mean()
+    #             std = others.std(ddof=1)
+    #             z[i] = 0 if std == 0 else (col[i] - μ) / std
+            
+    #         # detect outliers
+    #         out_idxs = np.where(np.abs(z) > 3)[0]
+    #         if out_idxs.size > 0:
+    #             mask = np.ones(nseg, dtype=bool) # drop the first flagged outlier
+    #             mask[out_idxs[0]] = False 
+    #             P[j] = col[mask].mean() # Average the non-outliers
+    #         else:
+    #             P[j] = col.mean() # no outlier → simple mean
+            
+    #         if j==200: 
+    #             print(f"col: {col}")
+    #             print(f"z: {z}")
+    #             print(f"out_idxs: {out_idxs}")
+    #             print(f"P[j]: {P[j]}")
     elif method == "outlier_rejection":
-        # 1. mean & (sample) std-dev per frequency bin
-        mu  = P_stack.mean(axis=0)                 # shape (n_freq,)
-        sig = P_stack.std(axis=0, ddof=1)
+        k_passes = 2                   # run the test-and-drop loop twice
+        nseg, nfreq = P_stack.shape
+        P = np.empty(nfreq, dtype=P_stack.dtype)
 
-        # 2. boolean mask of inliers  |x-μ| ≤ 3σ
-        z = np.abs(P_stack - mu) / sig             # broadcasts over segments axis
-        mask = z <= 3                              # shape (n_seg, n_freq)
+        for j in range(nfreq):
+            keep = np.ones(nseg, dtype=bool)  # start with every segment kept
 
-        # 3. average only the inliers; fall back to μ if all points were rejected
-        inlier_count = mask.sum(axis=0)            # how many survived in each bin
-        # avoid divide-by-zero: where inlier_count==0, keep the original mean
-        P = np.where(inlier_count,
-                    (P_stack * mask).sum(axis=0) / inlier_count,
-                    mu)
+            # run up to k_passes; each pass can delete at most ONE segment
+            for _ in range(k_passes):
+                col = P_stack[keep, j]        # current survivors
+                if col.size < 3:              # need ≥3 points for σ with ddof=1
+                    break
+                μ   = col.mean()
+                σ   = col.std(ddof=1)
+                if σ == 0:                    # identical values → nothing to reject
+                    break
+
+                z   = np.abs((col - μ) / σ)   # standard z-scores (not leave-one-out)
+                out = np.where(z > 3)[0]
+                if out.size == 0:             # no outlier → stop early
+                    break
+
+                # drop *one* outlier (first or worst – here we pick the worst)
+                worst_local  = z.argmax()     # index in `col`
+                worst_global = np.flatnonzero(keep)[worst_local]
+                keep[worst_global] = False    # mark as rejected and loop again
+
+            P[j] = P_stack[keep, j].mean()    # final average of survivors
+
     else:
         raise ValueError("method must be 'mean' or 'median' or 'outlier_rejection'")
     
