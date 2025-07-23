@@ -219,7 +219,7 @@ def file_paths_to_params(
         "t0": t0,
         "dt": pipe_cfg["dt"].to("s").value / pipe_cfg["physic_upsampling"],
         "physic_upsampling": pipe_cfg["physic_upsampling"],
-        "size": pipe_cfg["duration"].to("s").value / pipe_cfg["dt"].to("s").value,
+        "size": glitch_cfg["duration"] / pipe_cfg["dt"].to("s").value,
         "glitch_output_h5": PATH_glitch_data + glitch_output_h5,
         "glitch_output_txt": PATH_glitch_data + glitch_output_txt,
         "glitch_shape": glitch_cfg["glitch_shape"],

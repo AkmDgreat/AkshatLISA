@@ -116,8 +116,7 @@ def simulate_lisa(
         physics_upsampling=glitch_inputs["physics_upsampling"],
         aafilter=glitch_inputs["aafilter"],
         glitches=glitch_input_h5_path,    
-        central_freq= CENTRAL_FREQ,
-        gws= "../../gws.h5"
+        central_freq= CENTRAL_FREQ
     )
 
     # lisa_instrument.disable_all_noises(but="laser")

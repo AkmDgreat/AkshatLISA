@@ -4,6 +4,7 @@ level: [1e-9]
 glitch_shape: "OneSidedDoubleExpGlitch"
 t_rise: 5
 t_fall: 10
+duration: 86400
 _command: |
   args=(                                            
     --glitch_cfg_input      glitch_0.yml

@@ -108,66 +108,33 @@ def wosa(x,
         P = np.median(P_stack, axis=0)
         # print(f"median col: {P_stack[: 200]}")
 
-    # elif method == "outlier_rejection":
-    #     nseg, nfreq = P_stack.shape
-    #     P = np.empty(nfreq, dtype=P_stack.dtype)
-
-    #     # for each frequency bin j, find & reject any segment >3σ (leave-one-out)
-    #     for j in range(nfreq):
-    #         col = P_stack[:, j]
-
-    #         # compute leave-one-out z-scores
-    #         z = np.zeros(nseg, dtype=float)
-    #         for i in range(nseg):
-    #             # exclude i
-    #             others = np.delete(col, i)
-    #             μ = others.mean()
-    #             std = others.std(ddof=1)
-    #             z[i] = 0 if std == 0 else (col[i] - μ) / std
-            
-    #         # detect outliers
-    #         out_idxs = np.where(np.abs(z) > 3)[0]
-    #         if out_idxs.size > 0:
-    #             mask = np.ones(nseg, dtype=bool) # drop the first flagged outlier
-    #             mask[out_idxs[0]] = False 
-    #             P[j] = col[mask].mean() # Average the non-outliers
-    #         else:
-    #             P[j] = col.mean() # no outlier → simple mean
-            
-    #         if j==200: 
-    #             print(f"col: {col}")
-    #             print(f"z: {z}")
-    #             print(f"out_idxs: {out_idxs}")
-    #             print(f"P[j]: {P[j]}")
     elif method == "outlier_rejection":
-        k_passes = 2                   # run the test-and-drop loop twice
         nseg, nfreq = P_stack.shape
         P = np.empty(nfreq, dtype=P_stack.dtype)
 
         for j in range(nfreq):
-            keep = np.ones(nseg, dtype=bool)  # start with every segment kept
+            keep = np.ones(nseg, dtype=bool)       # start with every segment kept
 
-            # run up to k_passes; each pass can delete at most ONE segment
-            for _ in range(k_passes):
-                col = P_stack[keep, j]        # current survivors
-                if col.size < 3:              # need ≥3 points for σ with ddof=1
+            while True:                            # repeat until no outlier found
+                col = P_stack[keep, j]
+                if col.size < 3:                   # <3 points → σ ill-defined
                     break
-                μ   = col.mean()
-                σ   = col.std(ddof=1)
-                if σ == 0:                    # identical values → nothing to reject
-                    break
-
-                z   = np.abs((col - μ) / σ)   # standard z-scores (not leave-one-out)
-                out = np.where(z > 3)[0]
-                if out.size == 0:             # no outlier → stop early
+                μ  = col.mean()
+                σ  = col.std(ddof=1)
+                if σ == 0:                         # identical values → done
                     break
 
-                # drop *one* outlier (first or worst – here we pick the worst)
-                worst_local  = z.argmax()     # index in `col`
+                z   = np.abs((col - μ) / σ)
+                out = np.where(z > 3)[0]           # indices in *current* col
+                if out.size == 0:                  # no outlier left → done
+                    break
+
+                # drop ONE worst offender this round; loop will re-check
+                worst_local  = z.argmax()
                 worst_global = np.flatnonzero(keep)[worst_local]
-                keep[worst_global] = False    # mark as rejected and loop again
+                keep[worst_global] = False
 
-            P[j] = P_stack[keep, j].mean()    # final average of survivors
+            P[j] = P_stack[keep, j].mean()         # final average
 
     else:
         raise ValueError("method must be 'mean' or 'median' or 'outlier_rejection'")
