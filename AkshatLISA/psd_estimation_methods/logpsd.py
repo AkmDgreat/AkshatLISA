@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import welch            # swap this for your own `wosa` if you like
-from scripts.wosa import wosa
+from psd_estimation_methods.wosa import wosa
 
 def logpsd(x,
            fs: float,

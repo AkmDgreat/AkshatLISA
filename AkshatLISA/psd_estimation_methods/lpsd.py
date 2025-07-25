@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.signal import get_window
-from scripts.wosa import wosa
+from psd_estimation_methods.wosa import wosa
 
 
 def lpsd(

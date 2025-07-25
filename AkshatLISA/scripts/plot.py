@@ -1,14 +1,15 @@
 import matplotlib.pyplot as plt
 import scipy.signal as sig
-from scripts.lpsd import lpsd
-from scripts.wosa import wosa
+from psd_estimation_methods.lpsd import lpsd
+from psd_estimation_methods.wosa import wosa
 import numpy as np
 import random
 from scipy.stats import chi2
 from collections.abc import Iterable
 from scipy.integrate import simpson
-from scripts.medianFuncs import median_pdf, ratio_numerical, ratio
+from scripts.medianFuncs import median_pdf, factor
 from matplotlib.ticker import ScalarFormatter
+from scripts.pdf import pdf
 
 def plot_residual_histogram(residual: np.ndarray,
                             bins: int | str = "auto",
@@ -165,7 +166,6 @@ def plot_scaled_median_vs_mean_pdf(N, s=1.0):
 
     x = np.linspace(0, 50*s, 20000)      
     pdf_median = median_pdf(x, N, s)
-    pdf_median /= simpson(pdf_median, x=x)   # normalise
     mean_median = simpson(x * pdf_median, x=x)
     c          = s / mean_median                  
 
@@ -174,7 +174,6 @@ def plot_scaled_median_vs_mean_pdf(N, s=1.0):
     std_mean = np.sqrt(second_moment_mean - s**2)
 
     pdf_median = median_pdf(x / c, N, s) / c
-    pdf_median /= simpson(pdf_median, x=x)     
     mean_median = simpson(x * pdf_median, x=x) 
     second_moment_median = simpson(x**2 * pdf_median, x = x)
     std_median = np.sqrt(second_moment_median - mean_median**2)
@@ -196,7 +195,6 @@ def plot_unscaled_median_vs_mean_pdf(N, s=1.0):
 
     x = np.linspace(0, 50*s, 20000)      
     pdf_median = median_pdf(x, N, s)
-    pdf_median /= simpson(pdf_median, x=x)   # normalise
     mean_median = simpson(x * pdf_median, x=x)
     second_moment_median = simpson(x**2 * pdf_median, x = x)
     std_median = np.sqrt(second_moment_median - mean_median**2)

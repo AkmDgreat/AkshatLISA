@@ -5,6 +5,7 @@ from scipy.stats import chi2
 import warnings
 from scipy.special import gammainccinv          # inverse Q(a,x)
 from scipy.integrate import quad
+from scipy.integrate import simpson
 from scipy.special import digamma, gamma
 from numpy.typing import ArrayLike
 from typing import Tuple
@@ -20,8 +21,7 @@ def median_pdf(x, N, s):
         n = (N - 1) // 2
         F = 1 - np.exp(-y)         
         f = np.exp(-y)              
-        coeff = factorial(N) / (factorial(n) * factorial(n))
-        pdf  = coeff * (F**n) * ((1 - F)**n) * f / s
+        pdf = (F**n) * ((1 - F)**n) * f / s
         
     else: 
         k   = N // 2
@@ -39,6 +39,7 @@ def median_pdf(x, N, s):
         # numerical guard – tiny negatives can appear from round-off
         pdf = np.where(pdf < 0, 0.0, pdf)
 
+    pdf /= simpson(pdf, x=x) # normalise
     return pdf  
 
 ### The following three functions are used to prove the fact that 
@@ -49,7 +50,7 @@ def y_n(x, n, s):
     F = 1 - np.exp(-x/s)  # CDF
     return (F**n) * (1-F)**n * f      
 
-def ratio_numerical(n, s=1.0):
+def factor(n, s=1.0):
     """
     n : int or array-like of ints  (n ≥ 1)
     s : scale (default 1)
@@ -67,7 +68,7 @@ def ratio_numerical(n, s=1.0):
     # return a scalar if a scalar went in
     return out.item() if np.isscalar(n) else out
 
-def ratio(n, s=1.0):
+def factor_median_odd_optimised(n, s=1.0):
     """
     n : int or 1-D array of ints (n ≥ 1)
     s : positive scale (default 1)
