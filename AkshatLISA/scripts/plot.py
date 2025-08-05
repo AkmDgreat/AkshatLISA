@@ -12,60 +12,72 @@ from matplotlib.ticker import ScalarFormatter
 from scripts.pdf import pdf                         
 from scipy.integrate import quad
 
-def plot_scaled_median_vs_mean_pdf(N, s=1.0):
+def plot_median_vs_mean_pdf(N, s=1.0, mode='scaled'):
+    """
+    Plot the WOSA-mean and WOSA-median PDFs for `N` segments and true PSD `s`.
+    N : Number of segments 
+    s : True one-sided PSD value used to generate the curves.
+    mode : {'scaled', 'unscaled'}, default 'scaled'
+        - 'scaled'   : stretch the median PDF so its mean equals `s`
+        - 'unscaled' : leave the median PDF unchanged
+    """
     df = 2 * N                   
 
-    x = np.linspace(0, 50*s, 20000)      
-    pdf_median = median_pdf(x, N, s)
-    mean_median = simpson(x * pdf_median, x=x)
-    c          = s / mean_median                  
+    x = np.linspace(0, 50*s, 20000)
+    pdf_mean = pdf(x, N, s, "mean")
+      
+    if mode == 'scaled':
+        pdf_median = pdf(x, N, s, "median")
+        mean_median = simpson(x * pdf_median, x=x)
+        c          = s / mean_median                  
+        pdf_median = median_pdf(x / c, N, s) / c
+        mean_median = simpson(x * pdf_median, x=x) 
+    else:
+        pdf_median = pdf(x, N, s, "median")
+        mean_median = simpson(x * pdf_median, x=x)
 
-    pdf_mean = (df / s) * chi2.pdf((df/s) * x, df)
-    second_moment_mean = simpson(x**2 * pdf_mean, x = x)
-    std_mean = np.sqrt(second_moment_mean - s**2)
-
-    pdf_median = median_pdf(x / c, N, s) / c
-    mean_median = simpson(x * pdf_median, x=x) 
-    second_moment_median = simpson(x**2 * pdf_median, x = x)
-    std_median = np.sqrt(second_moment_median - mean_median**2)
+    second_moment_mean   = simpson(x**2 * pdf_mean,   x=x)
+    std_mean             = np.sqrt(second_moment_mean   - s**2)
+    second_moment_median = simpson(x**2 * pdf_median, x=x)
+    std_median           = np.sqrt(second_moment_median - mean_median**2)
     
     plt.figure(figsize=(8, 4))
     plt.autoscale(enable=True, axis='y')
-    plt.plot(x, pdf_mean,   lw=2, label=f'WOSA PDF (σ={std_mean:.3f})')
-    plt.plot(x, pdf_median, lw=2, label=f'WOSA-Median PDF σ={std_median:.3f})')
-    plt.xlim(0, 3*s)
-    plt.ylim(bottom = 0)
-    plt.axvline(s,          ls='--', lw=2, label=f'Mean of PDF(s) = {s}')
-    # plt.axvline(mean_median,ls=':',  lw=2, label=f'Mean median = {mean_median:.3f}')
-    plt.xlabel('x'); plt.ylabel('PDF')
-    plt.title(f'PDF for WOSA-mean and WOSA-median if PSD={s} ({N} segments)')
-    plt.legend(); plt.grid(True); plt.tight_layout(); plt.show()
-
-def plot_unscaled_median_vs_mean_pdf(N, s=1.0):
-    df = 2 * N                   
-
-    x = np.linspace(0, 50*s, 20000)      
-    pdf_median = median_pdf(x, N, s)
-    mean_median = simpson(x * pdf_median, x=x)
-    second_moment_median = simpson(x**2 * pdf_median, x = x)
-    std_median = np.sqrt(second_moment_median - mean_median**2)
-
-    pdf_mean = (df / s) * chi2.pdf((df/s) * x, df)
-    second_moment_mean = simpson(x**2 * pdf_mean, x = x)
-    std_mean = np.sqrt(second_moment_mean - s**2)
-
     
-    plt.figure(figsize=(8, 4))
-    plt.autoscale(enable=True, axis='y')
-    line_mean, = plt.plot(x, pdf_mean,   lw=2, label=f'WOSA PDF (σ={std_mean:.3f})')
-    line_median, = plt.plot(x, pdf_median, lw=2, label=f'WOSA-Median PDF σ={std_median:.3f})')
+    line_mean, = plt.plot(
+        x, pdf_mean,   lw=2, label=f'WOSA PDF (σ={std_mean:.3f})'
+    )
+    line_median, = plt.plot(
+        x, pdf_median, lw=2, label=f'WOSA-Median PDF σ={std_median:.3f})'
+    )
+    
     plt.xlim(0, 3*s)
-    plt.ylim(bottom = 0)
-    plt.axvline(s,          ls=':', lw=2, color=line_mean.get_color(), label=f'Mean mean = {s}')
-    plt.axvline(mean_median,ls=':',  lw=2, color=line_median.get_color(), label=f'Mean median = {mean_median:.3f}')
-    plt.xlabel('x'); plt.ylabel('PDF')
-    plt.title(f'PDF for WOSA-mean and WOSA-median if PSD={s} ({N} segments)')
-    plt.legend(); plt.grid(True); plt.tight_layout(); plt.show()
+    plt.ylim(bottom=0)
+    
+    if mode == 'scaled':
+        plt.axvline(
+            s, ls='--', lw=2,
+            label=f'Mean of PDF(s) = {s}'
+        )
+    else:
+        plt.axvline(
+            s, ls=':', lw=2,
+            color=line_mean.get_color(),
+            label=f'Mean mean = {s}'
+        )
+        plt.axvline(
+            mean_median, ls=':', lw=2,
+            color=line_median.get_color(),
+            label=f'Mean median = {mean_median:.3f}'
+        )
+    
+    plt.xlabel('x')
+    plt.ylabel('PDF')
+    plt.title(f'PDF for WOSA mean vs. median (PSD = {s}, N = {N})')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
 def plot_psd_noise_median_histogram_two_cross_two(
     noise_vals_list,
@@ -74,7 +86,8 @@ def plot_psd_noise_median_histogram_two_cross_two(
     seg_counts,
     median_pdf_fn,
     main_title,
-    n_bins=30
+    n_bins=30,
+    show_biased_hist=True
 ):
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     fig.suptitle(main_title, fontsize=16)
@@ -92,8 +105,7 @@ def plot_psd_noise_median_histogram_two_cross_two(
             bins=n_bins,
             density=False,        # raw counts
             alpha=0.6,
-            edgecolor='k',
-            label="Empirical PDF"
+            edgecolor='k'
         )
         total     = len(psd_vals)
         bin_width = bins[1] - bins[0]
@@ -113,11 +125,12 @@ def plot_psd_noise_median_histogram_two_cross_two(
         pdf1  = pdf0 / scale
         
         # 3) Plot model curves **scaled to counts**
-        ax.plot(
-            x0, pdf0 * total * bin_width,
-            'b-', lw=2,
-            label="Median PDF (biased)"
-        )
+        if show_biased_hist:
+            ax.plot(
+                x0, pdf0 * total * bin_width,
+                'b-', lw=2,
+                label="Median PDF (biased)"
+            )
         ax.plot(
             x1, pdf1 * total * bin_width,
             'r-', lw=2,
@@ -128,7 +141,7 @@ def plot_psd_noise_median_histogram_two_cross_two(
         ax.axvline(
             model_mean0,
             color='b', ls='--', lw=2,
-            label=f"Model mean = {model_mean0:.2e}"
+            label=f"True PSD estimate = {model_mean0:.2e}"
         )
         ax.axvline(
             s,
@@ -384,8 +397,7 @@ def plot_psd_noise_median_histogram(
         bins=n_bins,
         density=True,
         alpha=0.6,
-        edgecolor='k',
-        label="Empirical PDF"
+        edgecolor='k'
     )
 
     # 2) Build fine grid for the model PDF
@@ -601,7 +613,8 @@ def plot_psd_noise_histogram_two_cross_two(
     df_list,           # list of ints: degrees of freedom for each subplot
     seg_counts,        # list of ints: number of segments in each case
     main_title,        # str: the overall title above the 2×2 grid
-    n_bins=30
+    n_bins=30,
+    show_biased_hist = True
 ):
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     fig.suptitle(main_title, fontsize=16)
@@ -628,14 +641,15 @@ def plot_psd_noise_histogram_two_cross_two(
         x = np.linspace(0, noise_vals.max()*1.1, 500)
         
         # model using original PSD
-        pdf1 = (df/orig_psd) * chi2.pdf(df * x / orig_psd, df)
-        ax.plot(
-            x,
-            pdf1 * total * bin_width,
-            'b-',
-            lw=2,
-            label=rf"$\chi^2_{{{df}}}$ (orig)"
-        )
+        if show_biased_hist:
+            pdf1 = (df/orig_psd) * chi2.pdf(df * x / orig_psd, df)
+            ax.plot(
+                x,
+                pdf1 * total * bin_width,
+                'b-',
+                lw=2,
+                label=rf"$\chi^2_{{{df}}}$ (orig)"
+            )
         
         # model using histogram mean
         mean_psd = noise_vals.mean()
@@ -654,8 +668,10 @@ def plot_psd_noise_histogram_two_cross_two(
             color='b',
             lw=2,
             ls='--',
-            label=f"True PSD = {orig_psd:.2e}"
+            label=f"True PSD estimate = {orig_psd:.2e}"
         )
+
+        
         ax.axvline(
             mean_psd,
             color='r',
@@ -674,4 +690,83 @@ def plot_psd_noise_histogram_two_cross_two(
     
     # tighten around the suptitle
     fig.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
+def plot_median_vs_mean_pdf_two_cross_two(N_values=(1, 3, 10, 30), *, s=1.0, mode="scaled"):
+    """
+    Draw a 2×2 grid comparing the WOSA-mean and WOSA-median PDFs.
+
+    Parameters
+    ----------
+    N_values : tuple/list of 4 ints, default (1, 3, 10, 30)
+        Segment counts to use for the four sub-plots, ordered
+        left-to-right, top-to-bottom.
+    s        : float, default 1.0
+        True one-sided PSD value used for every panel.
+    mode     : {'scaled', 'unscaled'}, default 'scaled'
+        • 'scaled'   – stretch the median PDF so its mean equals `s`  
+        • 'unscaled' – leave the median PDF unchanged
+    """
+    if len(N_values) != 4:
+        raise ValueError("N_values must contain exactly four integers (one per panel).")
+
+    # ------------------------------------------------------------------
+    # Helper: compute PDFs & stats for a single N
+    # ------------------------------------------------------------------
+    def _get_curves(n_seg):
+        x = np.linspace(0, 50 * s, 20_000)
+        pdf_mean = pdf(x, n_seg, s, "mean")        # relies on your existing `pdf`
+        print(pdf_mean)
+
+        if mode == "scaled":
+            pdf_median = pdf(x, n_seg, s, "median")
+            mean_med   = simpson(x * pdf_median, x=x)
+            c          = s / mean_med
+            pdf_median = median_pdf(x / c, n_seg, s) / c   # relies on your `median_pdf`
+            mean_med   = simpson(x * pdf_median, x=x)
+        else:
+            pdf_median = pdf(x, n_seg, s, "median")
+            mean_med   = simpson(x * pdf_median, x=x)
+
+        σ_mean   = np.sqrt(simpson(x**2 * pdf_mean,   x=x) - s**2)
+        σ_median = np.sqrt(simpson(x**2 * pdf_median, x=x) - mean_med**2)
+        return x, pdf_mean, pdf_median, σ_mean, σ_median, mean_med
+
+    # ------------------------------------------------------------------
+    # Build figure & iterate over four panels
+    # ------------------------------------------------------------------
+    fig, axes = plt.subplots(2, 2, figsize=(12, 9))
+    axes = axes.ravel()   # flatten for easy looping
+
+    for ax, N in zip(axes, N_values):
+        x, pdf_mean, pdf_median, σ_mean, σ_median, mean_med = _get_curves(N)
+
+        line_mean,   = ax.plot(x, pdf_mean,   lw=2,
+                               label=fr"WOSA PDF ($\sigma={σ_mean:.3f}$)")
+        line_median, = ax.plot(x, pdf_median, lw=2,
+                               label=fr"WOSA-median PDF ($\sigma={σ_median:.3f}$)")
+
+        ax.set_xlim(0, 3 * s)
+        ax.set_ylim(bottom=0)
+
+        if mode == "scaled":
+            ax.axvline(s, ls="--", lw=2, label=fr"Mean of PDFs = {s}")
+        else:
+            ax.axvline(s,        ls=":", lw=2, color=line_mean.get_color(),
+                       label=fr"Mean₍mean₎ = {s}")
+            ax.axvline(mean_med, ls=":", lw=2, color=line_median.get_color(),
+                       label=fr"Mean₍median₎ = {mean_med:.3f}")
+
+        ax.set_xlabel("x")
+        ax.set_ylabel("PDF")
+        ax.set_title(fr"PSD $={s}$, $N={N}$")
+        ax.grid(True)
+        ax.legend(fontsize="small")
+
+    # ------------------------------------------------------------------
+    # Overall layout
+    # ------------------------------------------------------------------
+    fig.suptitle(f"WOSA Mean vs. Median PDFs (PSD={s})",
+                 fontsize=15, y=0.99)
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
     plt.show()

@@ -6,9 +6,9 @@ def pdf(x, N, s, method):
     """
     PDF for PSD estimate with "N" segments, and true PSD "s"
     """
-    if method = 'mean':
+    if method == 'mean':
         return mean_pdf(x, N, s)
-    else if method = 'median':
+    elif method == 'median':
         return median_pdf(x, N, s)
 
 def mean_pdf(x, N, s): 
@@ -19,6 +19,7 @@ def mean_pdf(x, N, s):
     x = np.asarray(x, dtype=float)
     df = 2 * N         
     pdf = (df / s) * chi2.pdf((df/s) * x, df)
+    return pdf
 
 def median_pdf(x, N, s):
     """
