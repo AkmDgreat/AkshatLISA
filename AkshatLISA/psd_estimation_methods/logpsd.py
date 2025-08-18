@@ -85,9 +85,9 @@ def logpsd(x,
     f_opt = np.asarray(fk_list)
     P_opt = np.empty_like(f_opt)
     
-    print(string_arr)
-    print(f"Lk_list: {Lk_list}")
-    print(f"fk_list: {fk_list}")
+    # (string_arr)
+    # print(f"Lk_list: {Lk_list}")print
+    # print(f"fk_list: {fk_list}")
     # ------------------------------------------------------------------
     # 3. Estimate the PSD at every (L_k, f_k)
     #    • run Welch/WOSA with segment length L_k

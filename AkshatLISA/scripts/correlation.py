@@ -5,7 +5,6 @@ import numpy as np
 
 def compute_psd_noise_pair(
     tdi_file_path,
-    channel="X",
     fraction=0.8,
     offset_bins=1,
     n_trials=100,
@@ -20,7 +19,7 @@ def compute_psd_noise_pair(
     Draw PSD-noise samples at two frequency bins and compute
 
         ⟨(X - X_true)(Y - Y_true)⟩                (covariance)
-        ⟨(X - X_true)(Y - Y_true)⟩ / (σ_X σ_Y)     (correlation)
+        ⟨(X - X_true)(Y - Y_true)⟩ / (sigma_X sigma_Y)     (correlation)
 
     where X_true and Y_true are the *deterministic* PSD values returned
     by `psdTdiNoise`.
@@ -39,6 +38,8 @@ def compute_psd_noise_pair(
         The “true” PSD values at the two bins.
     """
     # ---------- first call: one deterministic PSD --------------------
+    
+
     psd_true, freq, _ = psdTdiNoise(
         tdi_file_path=tdi_file_path,
         channel=channel,
@@ -47,7 +48,7 @@ def compute_psd_noise_pair(
         noverlap=noverlap,
         average=average,
         scaling=scaling,
-        seed=None            # leave RNG untouched → deterministic
+        seed=None            
     )
     n_bins = len(freq)
     idx1 = int(fraction * (n_bins - 1))
