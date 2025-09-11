@@ -53,3 +53,6 @@ Think of a virtual environment as a “container of libraries.” If you are wor
 - You’ll also need Kye’s code in your directory: [https://github.com/0Strategist0/KyeLDC](https://github.com/0Strategist0/KyeLDC).
 - Run `pip install -r requirements.txt` to install the packages. If you run into linker issues or C/C++ errors, see Step 6 in [AkshatLISA/injecting_mbbh/downloading_bbhx.md](AkshatLISA/injecting_mbbh/downloading_bbhx.md).
 - If you want to inject MBBH to LISA noise, see the instructions [here](AkshatLISA/injecting_mbbh/downloading_bbhx.md).
+- Your final folder structure should look like this: 
+
+<img src="images_for_readme/image-structure.png" alt="Navigator – Environments tab" width="300" height="600"/>
