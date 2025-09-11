@@ -1,3 +1,6 @@
+# Warning!
+If you just want to use glitch simulation stuff, I recommend using [https://github.com/wmostrenko/LISASimulation](William's code). It's pretty clean, and easy to use. Also, this installation guide might be out of date. 
+
 # Downloading Beth's code
 
 These are instructions for downloading Beth's code (https://github.com/bconc/bethLISA)
